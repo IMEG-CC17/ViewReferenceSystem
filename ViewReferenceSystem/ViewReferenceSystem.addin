@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>View Reference System V3</Name>
+    <Assembly>ViewReferenceSystem.dll</Assembly>
+    <FullClassName>ViewReferenceSystem.Ribbon</FullClassName>
+    <ClientId>463826B8-E35D-42B4-94B8-5C74CED81662</ClientId>
+    <VendorId>CC17</VendorId>
+    <VendorDescription>View Reference System</VendorDescription>
+  </AddIn>
+</RevitAddIns>

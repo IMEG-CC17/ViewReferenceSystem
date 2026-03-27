@@ -1,0 +1,25 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+*.DotSettings.user
+
+# NuGet
+packages/
+*.nupkg
+
+# Backups
+backup*/
+*.bak
+
+# Revit family files (distributed via Firebase, not source control)
+*.rfa
+
+# Roslyn loose DLLs (loaded at runtime, not compiled in)
+Microsoft.CodeAnalysis.dll
+Microsoft.CodeAnalysis.CSharp.dll
