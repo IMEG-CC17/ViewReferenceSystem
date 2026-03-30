@@ -1,239 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>View Reference System — IMEG CC17</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --navy: #1B2E4B;
-    --navy-dark: #152338;
-    --navy-light: #243D63;
-    --red: #C0392B;
-    --red-hover: #A93226;
-    --green: #4A9C6F;
-    --text: #1B2E4B;
-    --text-muted: #6B7A8D;
-    --border: #DDE1E7;
-    --bg: #F0F2F5;
-    --white: #FFFFFF;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-  nav { background: var(--navy-dark); padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
-  .nav-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
-  .nav-accent { width: 6px; height: 28px; background: var(--red); border-radius: 2px; }
-  .nav-title { font-size: 18px; font-weight: 600; color: white; letter-spacing: -0.3px; }
-  .nav-title span { font-weight: 300; color: #8FA3BC; }
-  .nav-links { display: flex; gap: 32px; list-style: none; }
-  .nav-links a { color: #8FA3BC; text-decoration: none; font-size: 14px; transition: color 0.2s; }
-  .nav-links a:hover { color: white; }
-  .hero { background: var(--navy); padding: 96px 48px; position: relative; overflow: hidden; }
-  .hero::before { content: ''; position: absolute; top: 0; right: 0; width: 40%; height: 100%; background: linear-gradient(135deg, transparent 0%, rgba(192,57,43,0.06) 100%); pointer-events: none; }
-  .hero-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
-  .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(192,57,43,0.15); border: 1px solid rgba(192,57,43,0.3); color: #E87C6E; font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 20px; margin-bottom: 24px; font-family: 'DM Mono', monospace; }
-  .hero-badge::before { content: ''; width: 6px; height: 6px; background: var(--red); border-radius: 50%; animation: pulse 2s infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-  .hero h1 { font-size: 52px; font-weight: 600; color: white; line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 20px; }
-  .hero h1 em { font-style: normal; color: #8FA3BC; font-weight: 300; }
-  .hero p { font-size: 17px; color: #8FA3BC; line-height: 1.7; margin-bottom: 40px; font-weight: 300; }
-  .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
-  .btn-primary { background: var(--red); color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 15px; font-weight: 500; transition: background 0.2s, transform 0.1s; display: inline-flex; align-items: center; gap: 10px; }
-  .btn-primary:hover { background: var(--red-hover); transform: translateY(-1px); }
-  .btn-secondary { background: rgba(255,255,255,0.08); color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 15px; font-weight: 400; border: 1px solid rgba(255,255,255,0.12); transition: background 0.2s; display: inline-flex; align-items: center; gap: 10px; }
-  .btn-secondary:hover { background: rgba(255,255,255,0.13); }
-  .hero-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 32px; }
-  .version-label { font-size: 11px; font-weight: 500; color: #4A6080; letter-spacing: 1.5px; margin-bottom: 8px; font-family: 'DM Mono', monospace; }
-  .version-number { font-size: 42px; font-weight: 600; color: white; font-family: 'DM Mono', monospace; letter-spacing: -1px; margin-bottom: 4px; }
-  .version-date { font-size: 13px; color: #4A6080; margin-bottom: 24px; }
-  .version-divider { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 20px; }
-  .version-notes-label { font-size: 11px; color: #4A6080; letter-spacing: 1px; margin-bottom: 8px; font-family: 'DM Mono', monospace; }
-  .version-notes { font-size: 14px; color: #8FA3BC; line-height: 1.6; }
-  .version-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 20px; font-size: 12px; color: var(--green); }
-  .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
-  .section { max-width: 1100px; margin: 0 auto; padding: 80px 48px; }
-  .section-label { font-size: 11px; font-weight: 500; color: var(--red); letter-spacing: 2px; margin-bottom: 12px; font-family: 'DM Mono', monospace; }
-  .section-title { font-size: 36px; font-weight: 600; color: var(--navy); letter-spacing: -0.8px; margin-bottom: 12px; }
-  .section-subtitle { font-size: 16px; color: var(--text-muted); margin-bottom: 48px; font-weight: 300; }
-  .download-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-  .download-card { background: white; border-radius: 10px; padding: 32px; border: 1px solid var(--border); transition: box-shadow 0.2s, transform 0.2s; }
-  .download-card:hover { box-shadow: 0 8px 32px rgba(27,46,75,0.1); transform: translateY(-2px); }
-  .download-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; }
-  .icon-navy { background: #EBF0F8; }
-  .icon-red { background: #FBEAE9; }
-  .icon-green { background: #EBF5F0; }
-  .download-card h3 { font-size: 18px; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
-  .download-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; font-weight: 300; }
-  .download-meta { font-size: 12px; color: #9BA8B5; font-family: 'DM Mono', monospace; margin-bottom: 20px; }
-  .btn-download { display: inline-flex; align-items: center; gap: 8px; background: var(--navy); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; justify-content: center; }
-  .btn-download:hover { background: var(--navy-light); }
-  .btn-download.red { background: var(--red); }
-  .btn-download.red:hover { background: var(--red-hover); }
-  .requirements-bg { background: var(--navy-dark); padding: 1px 0; }
-  .requirements-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
-  .req-item { text-align: center; padding: 24px; }
-  .req-number { font-size: 32px; font-weight: 600; color: white; font-family: 'DM Mono', monospace; margin-bottom: 4px; }
-  .req-label { font-size: 13px; color: #6B8099; }
-  .contact-bg { background: white; }
-  .contact-card { background: var(--navy); border-radius: 12px; padding: 48px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
-  .contact-card h3 { font-size: 24px; font-weight: 600; color: white; margin-bottom: 8px; }
-  .contact-card p { font-size: 15px; color: #8FA3BC; font-weight: 300; }
-  .btn-contact { background: white; color: var(--navy); padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 15px; font-weight: 500; white-space: nowrap; transition: opacity 0.2s; flex-shrink: 0; }
-  .btn-contact:hover { opacity: 0.9; }
-  footer { background: var(--navy-dark); padding: 32px 48px; display: flex; align-items: center; justify-content: space-between; }
-  .footer-logo { display: flex; align-items: center; gap: 10px; }
-  .footer-accent { width: 4px; height: 20px; background: var(--red); border-radius: 2px; }
-  .footer-name { font-size: 14px; color: #8FA3BC; }
-  .footer-copy { font-size: 13px; color: #4A6080; }
-  @media (max-width: 900px) {
-    .hero-grid { grid-template-columns: 1fr; }
-    .hero-card { display: none; }
-    .download-grid { grid-template-columns: 1fr; }
-    .requirements-grid { grid-template-columns: repeat(2, 1fr); }
-    .contact-card { flex-direction: column; text-align: center; }
-    nav, .hero, .section { padding-left: 24px; padding-right: 24px; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Reference System — IMEG CC17</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --navy: #1B2E4B; --navy2: #152338; --red: #C0392B; --green: #4A9C6F; --muted: #8FA3BC; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--navy2); color: white;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 24px;
+    }
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 56px 48px;
+      max-width: 520px; width: 100%; text-align: center;
+    }
+    .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 40px; }
+    .brand-bar { width: 4px; height: 32px; background: var(--red); border-radius: 2px; }
+    .brand-text { font-size: 20px; font-weight: 300; color: white; }
+    .brand-text strong { font-weight: 600; }
+    h1 { font-size: 28px; font-weight: 300; letter-spacing: -0.5px; margin-bottom: 12px; }
+    h1 strong { font-weight: 600; }
+    .subtitle { font-size: 15px; color: var(--muted); line-height: 1.6; margin-bottom: 40px; }
+    .version-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 32px; }
+    .version-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .version-text { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); }
+    .version-num { font-family: 'DM Mono', monospace; font-size: 13px; color: white; }
+    .btn-download {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 16px 32px; background: var(--red); color: white;
+      border-radius: 8px; font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 600; text-decoration: none;
+      transition: background 0.2s, transform 0.2s; margin-bottom: 16px;
+    }
+    .btn-download:hover { background: #A93226; transform: translateY(-1px); }
+    .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .help-text a { color: var(--muted); text-decoration: underline; }
+    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 32px 0; }
+    footer { margin-top: 32px; font-size: 12px; color: rgba(255,255,255,0.2); text-align: center; }
+  </style>
 </head>
 <body>
-
-<nav>
-  <a href="#" class="nav-logo">
-    <div class="nav-accent"></div>
-    <div class="nav-title">VRS <span>— View Reference System</span></div>
-  </a>
-  <ul class="nav-links">
-    <li><a href="#downloads">Downloads</a></li>
-    <li><a href="#requirements">Requirements</a></li>
-    <li><a href="#contact">Support</a></li>
-  </ul>
-</nav>
-
-<div class="hero">
-  <div class="hero-grid">
-    <div>
-      <div class="hero-badge">IMEG CC17 — Structural Engineering</div>
-      <h1>View Reference<br><em>System</em></h1>
-      <p>A Revit add-in for managing detail references, view families, and portfolio synchronization across workshared models. Built for IMEG structural engineers.</p>
-      <div class="hero-actions">
-        <a href="#downloads" class="btn-primary">↓ Download Plugin</a>
-        <a href="#downloads" class="btn-secondary">Get VRS Manager</a>
-      </div>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-bar"></div>
+      <div class="brand-text"><strong>VRS</strong> View Reference System</div>
     </div>
-    <div class="hero-card">
-      <div class="version-label">STABLE RELEASE</div>
-      <div class="version-number" id="stableVersion">—</div>
-      <div class="version-date" id="stableDate">Loading...</div>
-      <div class="version-divider"></div>
-      <div class="version-notes-label">RELEASE NOTES</div>
-      <div class="version-notes" id="stableNotes">Loading release notes...</div>
-      <div class="version-status">
-        <div class="status-dot"></div>
-        Stable — recommended for all users
-      </div>
+    <h1><strong>Revit Add-in</strong><br>for IMEG Engineers</h1>
+    <p class="subtitle">Manages detail references and portfolio synchronization across workshared Revit models.</p>
+    <div class="version-row">
+      <div class="version-dot"></div>
+      <span class="version-text">Latest stable:&nbsp;</span>
+      <span class="version-num" id="version">Loading...</span>
     </div>
+    <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_Install.exe" class="btn-download">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+      </svg>
+      Download Installer.exe
+    </a>
+    <p class="help-text">
+      Supports Revit 2022-2026 &nbsp;·&nbsp; Windows only<br>
+      Questions? <a href="mailto:scott.thoreson@imegcorp.com">scott.thoreson@imegcorp.com</a>
+    </p>
+    <div class="divider"></div>
+    <p class="help-text" id="release-notes">Loading release notes...</p>
   </div>
-</div>
-
-<div id="downloads">
-  <div class="section">
-    <div class="section-label">DOWNLOADS</div>
-    <div class="section-title">Get started</div>
-    <div class="section-subtitle">Download the plugin and management tools for your machine.</div>
-    <div class="download-grid">
-      <div class="download-card">
-        <div class="download-icon icon-red">🔌</div>
-        <h3>VRS Plugin</h3>
-        <p>The core Revit add-in. Installs to all Revit versions found on your machine. Required for all users.</p>
-        <div class="download-meta" id="pluginMeta">Version — · —</div>
-        <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest" class="btn-download red">↓ Download Installer</a>
-      </div>
-      <div class="download-card">
-        <div class="download-icon icon-green">⚙️</div>
-        <h3>VRS Manager</h3>
-        <p>Standalone desktop app for managing portfolios, deploying updates, and monitoring system health. Developer / admin use.</p>
-        <div class="download-meta">Windows · .NET 8 · No install needed</div>
-        <a href="https://github.com/IMEG-CC17/VRSManager/releases/latest" class="btn-download">↓ Download Manager</a>
-      </div>
-      <div class="download-card">
-        <div class="download-icon icon-navy">📄</div>
-        <h3>Addin File</h3>
-        <p>Standalone <code>.addin</code> manifest if you need to install manually or troubleshoot an existing installation.</p>
-        <div class="download-meta">ViewReferenceSystem.addin</div>
-        <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest" class="btn-download">↓ Download .addin</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="requirements-bg" id="requirements">
-  <div class="section">
-    <div class="section-label" style="color:#4A9C6F">REQUIREMENTS</div>
-    <div class="section-title" style="color:white">System requirements</div>
-    <div class="section-subtitle" style="color:#6B8099">Compatible with the following Revit versions.</div>
-    <div class="requirements-grid">
-      <div class="req-item"><div class="req-number">2022</div><div class="req-label">Revit 2022</div></div>
-      <div class="req-item"><div class="req-number">2023</div><div class="req-label">Revit 2023</div></div>
-      <div class="req-item"><div class="req-number">2024</div><div class="req-label">Revit 2024</div></div>
-      <div class="req-item"><div class="req-number">2025+</div><div class="req-label">Revit 2025 & 2026</div></div>
-    </div>
-  </div>
-</div>
-
-<div class="contact-bg" id="contact">
-  <div class="section">
-    <div class="section-label">SUPPORT</div>
-    <div class="section-title">Need help?</div>
-    <div class="section-subtitle">Reach out for installation issues, bug reports, or feature requests.</div>
-    <div class="contact-card">
-      <div>
-        <h3>Scott Thoreson</h3>
-        <p>Plugin developer · IMEG Structural Engineering · Dallas, TX</p>
-      </div>
-      <a href="mailto:scott.thoreson@imegcorp.com" class="btn-contact">Email Scott</a>
-    </div>
-  </div>
-</div>
-
-<footer>
-  <div class="footer-logo">
-    <div class="footer-accent"></div>
-    <div class="footer-name">View Reference System · IMEG CC17</div>
-  </div>
-  <div class="footer-copy">Built by Scott Thoreson · IMEG Structural</div>
-</footer>
-
+  <footer>IMEG CC17 — Structural Engineering Tools</footer>
 <script>
-const DB = 'https://view-reference-default-rtdb.firebaseio.com';
-const API_KEY = 'AIzaSyBUrlLM0hyeIqU8KgkPV2jdgJbZuZSaaDM';
-const EMAIL = 'revit-plugin@imeg-internal.com';
-const PASSWORD = 'Welcom32IM@87';
-
-async function loadVersionInfo() {
-  try {
-    const authRes = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: EMAIL, password: PASSWORD, returnSecureToken: true }) }
-    );
-    const { idToken } = await authRes.json();
-    const versionRes = await fetch(`${DB}/installer/stable.json?auth=${idToken}`);
-    const data = await versionRes.json();
-    if (data && data.version) {
-      document.getElementById('stableVersion').textContent = data.version;
-      document.getElementById('stableDate').textContent = `Published ${data.updatedAt || '—'} by ${data.publishedBy || '—'}`;
-      document.getElementById('stableNotes').textContent = data.releaseNotes || 'No release notes.';
-      document.getElementById('pluginMeta').textContent = `Version ${data.version} · ${data.updatedAt || '—'}`;
+  const DB='https://view-reference-default-rtdb.firebaseio.com';
+  const API_KEY='AIzaSyBUrlLM0hyeIqU8KgkPV2jdgJbZuZSaaDM';
+  const EMAIL='revit-plugin@imeg-internal.com';
+  const PASS='Welcom32IM@87';
+  async function load() {
+    try {
+      const auth = await fetch(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+API_KEY,
+        { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email:EMAIL, password:PASS, returnSecureToken:true }) }
+      );
+      const { idToken } = await auth.json();
+      const res = await fetch(DB+'/installer/stable.json?auth='+idToken);
+      const data = await res.json();
+      if (data) {
+        document.getElementById('version').textContent = 'v'+(data.version||'--');
+        document.getElementById('release-notes').textContent = data.releaseNotes||'';
+      }
+    } catch(e) {
+      document.getElementById('version').textContent = '--';
     }
-  } catch(e) {
-    document.getElementById('stableVersion').textContent = 'v3.2.8';
-    document.getElementById('stableDate').textContent = 'See GitHub releases for latest';
-    document.getElementById('stableNotes').textContent = 'Visit GitHub releases for full changelog.';
   }
-}
-loadVersionInfo();
+  load();
 </script>
 </body>
 </html>
