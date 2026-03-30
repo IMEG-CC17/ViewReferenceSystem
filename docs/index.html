@@ -21,7 +21,7 @@
       background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 16px; padding: 56px 48px;
-      max-width: 520px; width: 100%; text-align: center;
+      max-width: 560px; width: 100%; text-align: center;
     }
     .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 40px; }
     .brand-bar { width: 4px; height: 32px; background: var(--red); border-radius: 2px; }
@@ -34,17 +34,30 @@
     .version-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
     .version-text { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); }
     .version-num { font-family: 'DM Mono', monospace; font-size: 13px; color: white; }
+
+    .download-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+
     .btn-download {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%; padding: 16px 32px; background: var(--red); color: white;
-      border-radius: 8px; font-family: 'DM Sans', sans-serif;
-      font-size: 15px; font-weight: 600; text-decoration: none;
-      transition: background 0.2s, transform 0.2s; margin-bottom: 16px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 20px 16px;
+      border-radius: 10px; text-decoration: none;
+      transition: transform 0.2s, opacity 0.2s;
     }
-    .btn-download:hover { background: #A93226; transform: translateY(-1px); }
-    .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .btn-download:hover { transform: translateY(-2px); opacity: 0.9; }
+
+    .btn-primary { background: var(--red); color: white; }
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+    }
+
+    .btn-label { font-size: 14px; font-weight: 600; }
+    .btn-sub { font-size: 11px; opacity: 0.7; }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 24px 0; }
+    .help-text { font-size: 12px; color: var(--muted); line-height: 1.8; }
     .help-text a { color: var(--muted); text-decoration: underline; }
-    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 32px 0; }
     footer { margin-top: 32px; font-size: 12px; color: rgba(255,255,255,0.2); text-align: center; }
   </style>
 </head>
@@ -56,25 +69,49 @@
     </div>
     <h1><strong>Revit Add-in</strong><br>for IMEG Engineers</h1>
     <p class="subtitle">Manages detail references and portfolio synchronization across workshared Revit models.</p>
+
     <div class="version-row">
       <div class="version-dot"></div>
       <span class="version-text">Latest stable:&nbsp;</span>
       <span class="version-num" id="version">Loading...</span>
     </div>
-    <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_Install.exe" class="btn-download">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
-      </svg>
-      Download Installer.exe
-    </a>
+
+    <div class="download-grid">
+      <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_Install.exe"
+         class="btn-download btn-primary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+        </svg>
+        <span class="btn-label">Quick Install</span>
+        <span class="btn-sub">Installs Revit add-in</span>
+      </a>
+
+      <a href="https://github.com/IMEG-CC17/VRSManager/releases/latest/download/VRSManager.exe"
+         class="btn-download btn-secondary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <span class="btn-label">VRS Manager</span>
+        <span class="btn-sub">Advanced management tool</span>
+      </a>
+    </div>
+
     <p class="help-text">
-      Supports Revit 2022-2026 &nbsp;·&nbsp; Windows only<br>
+      Quick Install supports Revit 2022-2026 &nbsp;·&nbsp; Windows only
+    </p>
+
+    <div class="divider"></div>
+
+    <p class="help-text" id="release-notes">Loading release notes...</p>
+
+    <div class="divider"></div>
+
+    <p class="help-text">
       Questions? <a href="mailto:scott.thoreson@imegcorp.com">scott.thoreson@imegcorp.com</a>
     </p>
-    <div class="divider"></div>
-    <p class="help-text" id="release-notes">Loading release notes...</p>
   </div>
   <footer>IMEG CC17 — Structural Engineering Tools</footer>
+
 <script>
   const DB='https://view-reference-default-rtdb.firebaseio.com';
   const API_KEY='AIzaSyBUrlLM0hyeIqU8KgkPV2jdgJbZuZSaaDM';
