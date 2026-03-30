@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Reference System — IMEG CC17</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --navy: #1B2E4B; --navy2: #152338; --red: #C0392B; --green: #4A9C6F; --muted: #8FA3BC; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--navy2); color: white;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 24px;
+    }
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 48px 40px;
+      max-width: 560px; width: 100%; text-align: center;
+    }
+    .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 36px; }
+    .brand-bar { width: 4px; height: 32px; background: var(--red); border-radius: 2px; }
+    .brand-text { font-size: 20px; font-weight: 300; color: white; }
+    .brand-text strong { font-weight: 600; }
+    h1 { font-size: 28px; font-weight: 300; letter-spacing: -0.5px; margin-bottom: 12px; }
+    h1 strong { font-weight: 600; }
+    .subtitle { font-size: 15px; color: var(--muted); line-height: 1.6; margin-bottom: 32px; }
+    .version-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 28px; }
+    .version-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .version-text { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); }
+    .version-num { font-family: 'DM Mono', monospace; font-size: 13px; color: white; }
+    .btn-download {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 16px 32px; background: var(--red); color: white;
+      border-radius: 8px; font-family: 'DM Sans', sans-serif;
+      font-size: 15px; font-weight: 600; text-decoration: none;
+      transition: background 0.2s, transform 0.2s; margin-bottom: 20px;
+    }
+    .btn-download:hover { background: #A93226; transform: translateY(-1px); }
+
+    /* Warning box */
+    .warning-box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .warning-title {
+      font-size: 13px; font-weight: 600; color: #F0C080;
+      margin-bottom: 14px; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .warning-steps { list-style: none; }
+    .warning-steps li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 13px; color: #C8D4E0; line-height: 1.5;
+    }
+    .warning-steps li:last-child { border-bottom: none; }
+    .step-num {
+      background: rgba(255,255,255,0.1);
+      color: white; font-weight: 600; font-size: 11px;
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .step-key {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px; padding: 1px 7px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px; color: white;
+    }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 20px 0; }
+    .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .help-text a { color: var(--muted); text-decoration: underline; }
+    footer { margin-top: 28px; font-size: 12px; color: rgba(255,255,255,0.2); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-bar"></div>
+      <div class="brand-text"><strong>VRS</strong> View Reference System</div>
+    </div>
+    <h1><strong>Revit Add-in</strong><br>for IMEG Engineers</h1>
+    <p class="subtitle">Manages detail references and portfolio synchronization across workshared Revit models.</p>
+
+    <div class="version-row">
+      <div class="version-dot"></div>
+      <span class="version-text">Latest stable:&nbsp;</span>
+      <span class="version-num" id="version">Loading...</span>
+    </div>
+
+    <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_QuickInstall.exe" class="btn-download">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+      </svg>
+      Download Quick Install
+    </a>
+
+    <!-- Windows SmartScreen warning instructions -->
+    <div class="warning-box">
+      <div class="warning-title">
+        <span>⚠️</span> Windows will warn you about this file — here's what to do:
+      </div>
+      <ul class="warning-steps">
+        <li>
+          <div class="step-num">1</div>
+          <div>After downloading, you'll see <em>"VRS_QuickInstall.exe isn't commonly downloaded"</em> in your browser. Click the <span class="step-key">...</span> menu next to the warning.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div>Click <span class="step-key">Keep</span> in the dropdown that appears.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div>A second screen appears saying "Make sure you trust this file." Click the <span class="step-key">∨</span> arrow next to Delete, then click <span class="step-key">Keep anyway</span>.</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div>Run the file. It will find your Revit installations and install the add-in automatically.</div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="divider"></div>
+    <p class="help-text" id="release-notes">Loading release notes...</p>
+    <div class="divider"></div>
+    <p class="help-text">
+      Supports Revit 2022-2026 &nbsp;·&nbsp; Windows only<br>
+      Questions? <a href="mailto:scott.thoreson@imegcorp.com">scott.thoreson@imegcorp.com</a>
+    </p>
+  </div>
+  <footer>IMEG CC17 — Structural Engineering Tools</footer>
+
+<script>
+  const DB='https://view-reference-default-rtdb.firebaseio.com';
+  const API_KEY='AIzaSyBUrlLM0hyeIqU8KgkPV2jdgJbZuZSaaDM';
+  const EMAIL='revit-plugin@imeg-internal.com';
+  const PASS='Welcom32IM@87';
+  async function load() {
+    try {
+      const auth = await fetch(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+API_KEY,
+        { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email:EMAIL, password:PASS, returnSecureToken:true }) }
+      );
+      const { idToken } = await auth.json();
+      const res = await fetch(DB+'/installer/stable.json?auth='+idToken);
+      const data = await res.json();
+      if (data) {
+        document.getElementById('version').textContent = 'v'+(data.version||'--');
+        document.getElementById('release-notes').textContent = data.releaseNotes||'';
+      }
+    } catch(e) {
+      document.getElementById('version').textContent = '--';
+    }
+  }
+  load();
+</script>
+</body>
+</html>
