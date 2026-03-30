@@ -95,37 +95,53 @@ namespace ViewReferenceSystem.Core
                     return null;
                 }
 
-                // ── Firebase path ────────────────────────────────────────────
-                if (FirebaseClient.IsFirebasePath(filePath))
+                if (!FirebaseClient.IsFirebasePath(filePath))
                 {
-                    System.Diagnostics.Debug.WriteLine($"📥 Loading portfolio from Firebase: {filePath}");
-                    string firebaseJson = FirebaseClient.ReadPortfolio(filePath);
-                    if (string.IsNullOrEmpty(firebaseJson))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"❌ No data at Firebase path: {filePath}");
-                        return null;
-                    }
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Non-Firebase path encountered — local paths no longer supported: {filePath}");
+                    return null;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"📥 Loading portfolio from Firebase: {filePath}");
+                string firebaseJson = FirebaseClient.ReadPortfolio(filePath);
+
+                if (!string.IsNullOrEmpty(firebaseJson))
                     return DeserializeAndInitPortfolio(firebaseJson, filePath, isFirebase: true);
-                }
 
-                // ── Local file path ──────────────────────────────────────────
-                System.Diagnostics.Debug.WriteLine($"📥 Loading portfolio from: {filePath}");
+                // Portfolio not found at this path — check for a breadcrumb
+                System.Diagnostics.Debug.WriteLine($"⚠️ No data at Firebase path: {filePath} — checking breadcrumb...");
 
-                if (!File.Exists(filePath))
+                try
                 {
-                    System.Diagnostics.Debug.WriteLine($"❌ Portfolio file not found: {filePath}");
-                    return null;
+                    var breadcrumb = FirebaseClient.ReadBreadcrumb(filePath);
+                    if (breadcrumb != null)
+                    {
+                        string type = breadcrumb["type"]?.ToString();
+                        if (type == "moved")
+                        {
+                            string newPath = breadcrumb["movedTo"]?.ToString();
+                            if (!string.IsNullOrEmpty(newPath))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"🔀 Breadcrumb: portfolio moved to {newPath}");
+                                FirebaseClient.PendingPathUpdate = newPath;
+                            }
+                        }
+                        else if (type == "archived")
+                        {
+                            System.Diagnostics.Debug.WriteLine("📦 Breadcrumb: portfolio is archived");
+                            FirebaseClient.PendingArchivedNotice = true;
+                        }
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("❌ No breadcrumb found — portfolio path is invalid");
+                    }
                 }
-
-                string jsonContent = File.ReadAllText(filePath);
-
-                if (string.IsNullOrEmpty(jsonContent))
+                catch (Exception breadcrumbEx)
                 {
-                    System.Diagnostics.Debug.WriteLine("❌ Portfolio file content is empty");
-                    return null;
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Could not read breadcrumb: {breadcrumbEx.Message}");
                 }
 
-                return DeserializeAndInitPortfolio(jsonContent, filePath, isFirebase: false);
+                return null;
             }
             catch (Exception ex)
             {

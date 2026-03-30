@@ -47,10 +47,8 @@ namespace ViewReferenceSystem
         private static UpdaterClient.VersionInfo _pendingUpdate = null;
         private static volatile bool _isShuttingDown = false;
 
-        // Post-sync work: ALL heavy work (transactions, family loads, migration, top notes)
-        // deferred to Idling because running inside DocumentSynchronizedWithCentral
-        // causes crashes — Revit is still finishing the sync pipeline.
-        private static Document _pendingPostSyncDoc = null;
+        // Post-sync relinquish: deferred to Idling because RelinquishOwnership
+        // cannot run inside DocumentSynchronizedWithCentral (Revit internal error)
         private static Document _pendingPostSyncRelinquishDoc = null;
         #endregion
 
@@ -187,16 +185,6 @@ namespace ViewReferenceSystem
                 updateButtonData.LargeImage = LoadPushButtonImage("ViewReferenceSystem.Resources.DetailIcon32.png");
                 _updateButton = panel.AddItem(updateButtonData) as PushButton;
                 _updateButton.Enabled = true;
-
-                // Publish Release Button (developer only)
-                PushButtonData publishButtonData = new PushButtonData(
-                    "PublishReleaseButton",
-                    "Publish\nRelease",
-                    typeof(Ribbon).Assembly.Location,
-                    typeof(ViewReferenceSystem.Commands.PublishReleaseCommand).FullName);
-                publishButtonData.ToolTip = "Publish a new release to Firebase for all users";
-                publishButtonData.LargeImage = LoadPushButtonImage("ViewReferenceSystem.Resources.DetailIcon32.png");
-                panel.AddItem(publishButtonData);
 
                 // AI Family Generator Button
                 PushButtonData aiFamilyButtonData = new PushButtonData(
@@ -470,13 +458,9 @@ namespace ViewReferenceSystem
                     // (transactions aren't allowed in DocumentOpened, but are in Idling)
                     string portfolioPath = PortfolioSettings.GetJsonPath(doc);
 
-                    // Auto-migrate if local path has a Firebase breadcrumb
-                    if (!string.IsNullOrEmpty(portfolioPath) && !FirebaseClient.IsFirebasePath(portfolioPath) && File.Exists(portfolioPath))
-                        _pendingAutoMigrateDoc = doc;
-
-                    // Queue family/top note updates if portfolio is accessible
+                    // Queue family/top note updates if portfolio is on Firebase
                     bool portfolioAccessible = !string.IsNullOrEmpty(portfolioPath) &&
-                        (FirebaseClient.IsFirebasePath(portfolioPath) || File.Exists(portfolioPath));
+                        FirebaseClient.IsFirebasePath(portfolioPath);
 
                     if (portfolioAccessible)
                     {
@@ -517,8 +501,6 @@ namespace ViewReferenceSystem
                     _lastActiveDocument = null;
                 if (_pendingPostSyncRelinquishDoc != null && _pendingPostSyncRelinquishDoc.Equals(doc))
                     _pendingPostSyncRelinquishDoc = null;
-                if (_pendingPostSyncDoc != null && _pendingPostSyncDoc.Equals(doc))
-                    _pendingPostSyncDoc = null;
 
                 if (doc.IsFamilyDocument)
                 {
@@ -621,15 +603,8 @@ namespace ViewReferenceSystem
                     return;
                 }
 
-                if (!FirebaseClient.IsFirebasePath(portfolioPath) && !File.Exists(portfolioPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"   ⚠️ Portfolio file not found: {portfolioPath}");
-                    System.Diagnostics.Debug.WriteLine("   ⏭️ Skipping portfolio update - file may be on disconnected network");
-                    return;
-                }
-
                 System.Diagnostics.Debug.WriteLine($"   📂 Portfolio path: {portfolioPath}");
-                _syncLogPath = null; // Reset so it picks up current portfolio path
+                _syncLogPath = null;
                 SyncLog("═══════════════════════════════════════════", portfolioPath);
                 SyncLog($"PRE-SYNC: doc.Title = '{doc.Title}'", portfolioPath);
 
@@ -637,6 +612,7 @@ namespace ViewReferenceSystem
 
                 if (portfolioData == null)
                 {
+                    HandleBreadcrumbState(doc, portfolioPath);
                     System.Diagnostics.Debug.WriteLine("   ⚠️ Portfolio data is null - skipping");
                     return;
                 }
@@ -694,24 +670,65 @@ namespace ViewReferenceSystem
                 }
 
                 bool isFirebase = FirebaseClient.IsFirebasePath(portfolioPath);
+
+                // For local paths, verify file exists
                 if (!isFirebase && !File.Exists(portfolioPath))
                 {
                     System.Diagnostics.Debug.WriteLine("   ⏭️ Portfolio file not found - skipping post-sync work");
                     return;
                 }
 
-                // ── DEFER ALL HEAVY WORK TO IDLING ──
-                // Running transactions, LoadFamily, TaskDialogs, or network calls inside
-                // DocumentSynchronizedWithCentral crashes Revit — the sync pipeline isn't
-                // fully complete yet. Queue everything for the next Idling cycle.
-                _pendingPostSyncDoc = doc;
+                // ── Auto-migrate check: if local path but portfolio has been migrated to Firebase ──
+                if (!isFirebase)
+                {
+                    CheckAndAutoMigrate(doc, portfolioPath);
+                    // Re-read in case it changed
+                    portfolioPath = PortfolioSettings.GetJsonPath(doc);
+                    isFirebase = FirebaseClient.IsFirebasePath(portfolioPath);
+                }
 
+                SyncLog("POST-SYNC: Starting post-sync processing...", portfolioPath);
+
+                // STEP 1: Update sync timestamp in Revit project parameters
+                try
+                {
+                    using (Transaction trans = new Transaction(doc, "Update Portfolio Sync Time"))
+                    {
+                        trans.Start();
+                        PortfolioSettings.SetLastSyncTimestamp(doc, DateTime.Now);
+                        trans.Commit();
+                    }
+                    System.Diagnostics.Debug.WriteLine("   ✅ Sync timestamp updated");
+                }
+                catch (Exception tsEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"   ⚠️ Could not update sync timestamp: {tsEx.Message}");
+                }
+
+                // STEP 2: Load any pending family updates
+                SyncLog("POST-SYNC: Checking family updates...", portfolioPath);
+                FamilyMonitorManager.UpdateFamiliesIfNeeded(doc);
+
+                // STEP 3: Push top notes from JSON to Revit shared parameters
+                PushTopNotesToRevit(doc, portfolioPath);
+
+                // STEP 4: Queue relinquish for next Idling cycle.
+                // RelinquishOwnership CANNOT run inside DocumentSynchronizedWithCentral —
+                // Revit is still finishing the sync pipeline and throws "internal error" if we
+                // try to talk to central again here. Deferring to Idling lets Revit fully
+                // complete the sync first, then we relinquish cleanly.
                 if (doc.IsWorkshared)
                 {
                     _pendingPostSyncRelinquishDoc = doc;
+                    SyncLog("POST-SYNC: Queued relinquish for next Idling cycle", portfolioPath);
+                    System.Diagnostics.Debug.WriteLine("   📋 Queued relinquish for next Idling cycle");
                 }
 
-                System.Diagnostics.Debug.WriteLine("   📋 Queued post-sync work for next Idling cycle");
+                // STEP 5: Refresh the portfolio pane
+                PortfolioManagePane.RefreshCurrentPane();
+
+                SyncLog("POST-SYNC: Complete (relinquish pending)", portfolioPath);
+                System.Diagnostics.Debug.WriteLine("   ✅ Post-sync processing complete (relinquish pending)");
             }
             catch (Exception ex)
             {
@@ -933,19 +950,34 @@ namespace ViewReferenceSystem
                 if (success)
                 {
                     SyncLog($"  AUTO-PUBLISH: '{familyToPublish}' published successfully", portfolioPath);
-                    System.Diagnostics.Debug.WriteLine($"✅ Auto-published: '{familyToPublish}'");
 
-                    // Silent refresh — no dialog to dismiss
+                    // Brief non-blocking notification via status bar
                     if (uiApp != null)
                     {
-                        try { uiApp.ActiveUIDocument?.RefreshActiveView(); } catch { }
+                        try
+                        {
+                            uiApp.ActiveUIDocument?.RefreshActiveView();
+                        }
+                        catch { }
                     }
+
+                    TaskDialog.Show("Family Auto-Published",
+                        $"'{familyToPublish}' was automatically published to the portfolio " +
+                        $"because it was loaded/reloaded and is a monitored family.\n\n" +
+                        $"Other projects will receive the update on their next Sync to Central.");
                 }
                 else
                 {
                     SyncLog($"  AUTO-PUBLISH BLOCKED: '{familyToPublish}' — {errorMessage}", portfolioPath);
                     System.Diagnostics.Debug.WriteLine($"⚠️ Auto-publish blocked for '{familyToPublish}': {errorMessage}");
-                    // Silent — don't interrupt user with dialog for auto-publish failures
+
+                    // Show the block reason to the user so they know what happened
+                    TaskDialog td = new TaskDialog("Family Auto-Publish Blocked");
+                    td.MainIcon = TaskDialogIcon.TaskDialogIconWarning;
+                    td.MainInstruction = $"Could not auto-publish '{familyToPublish}'";
+                    td.MainContent = errorMessage;
+                    td.CommonButtons = TaskDialogCommonButtons.Ok;
+                    td.Show();
                 }
 
                 // If more items in queue, keep Idling subscribed for next cycle
@@ -1016,7 +1048,10 @@ namespace ViewReferenceSystem
                                 if (status == CheckoutStatus.OwnedByCurrentUser)
                                 {
                                     SyncLog("POST-SYNC: ⚠️ Project Information STILL owned after relinquish!");
-                                    System.Diagnostics.Debug.WriteLine("   ⚠️ Project Information still owned after relinquish — may need manual relinquish");
+                                    TaskDialog.Show("VRS — Element Still Checked Out",
+                                        "RelinquishOwnership ran, but Project Information is still owned by you.\n\n" +
+                                        "This can happen if there are unsaved local changes.\n" +
+                                        "Try using Collaborate → Relinquish All Mine manually.");
                                 }
                                 else
                                 {
@@ -1030,104 +1065,10 @@ namespace ViewReferenceSystem
                     {
                         System.Diagnostics.Debug.WriteLine($"   ⚠️ Deferred relinquish failed: {relEx.Message}");
                         SyncLog($"POST-SYNC: ❌ RELINQUISH FAILED: {relEx.Message}");
-                        // Silent — don't block user with a dialog for a non-critical relinquish failure
-                    }
-                }
 
-                // ── Handle deferred post-sync work ──
-                // All heavy work (transactions, family loads, migration, top notes) was
-                // deferred from OnDocumentSynchronizedWithCentral to here where Revit is idle.
-                Document postSyncDoc = _pendingPostSyncDoc;
-                _pendingPostSyncDoc = null;
-                if (postSyncDoc != null && postSyncDoc.IsValidObject)
-                {
-                    string postSyncPath = PortfolioSettings.GetJsonPath(postSyncDoc);
-                    if (!string.IsNullOrEmpty(postSyncPath) &&
-                        (FirebaseClient.IsFirebasePath(postSyncPath) || File.Exists(postSyncPath)))
-                    {
-                        bool isFirebase = FirebaseClient.IsFirebasePath(postSyncPath);
-
-                        SyncLog("POST-SYNC (Idling): Starting deferred post-sync work...", postSyncPath);
-
-                        // STEP 1: Auto-migrate check
-                        if (!isFirebase)
-                        {
-                            try
-                            {
-                                CheckAndAutoMigrate(postSyncDoc, postSyncPath);
-                                postSyncPath = PortfolioSettings.GetJsonPath(postSyncDoc);
-                            }
-                            catch (Exception migEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"   ⚠️ Auto-migrate failed: {migEx.Message}");
-                            }
-                        }
-
-                        // STEP 2: Load any pending family updates
-                        bool familiesUpdated = false;
-                        SyncLog("POST-SYNC (Idling): Checking family updates...", postSyncPath);
-                        try
-                        {
-                            familiesUpdated = FamilyMonitorManager.UpdateFamiliesIfNeeded(postSyncDoc);
-                        }
-                        catch (Exception famEx)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"   ⚠️ Family update failed: {famEx.Message}");
-                        }
-
-                        // STEP 3: Push top notes from JSON to Revit shared parameters
-                        int topNotesUpdated = 0;
-                        try
-                        {
-                            topNotesUpdated = PushTopNotesToRevit(postSyncDoc, postSyncPath);
-                        }
-                        catch (Exception tnEx)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"   ⚠️ Top note push failed: {tnEx.Message}");
-                        }
-
-                        // STEP 4: If anything changed, relinquish and notify user to sync again
-                        if (familiesUpdated || topNotesUpdated > 0)
-                        {
-                            // Relinquish elements checked out by the work above
-                            try
-                            {
-                                if (postSyncDoc.IsWorkshared)
-                                {
-                                    var postWorkRelinquish = new RelinquishOptions(true);
-                                    postWorkRelinquish.StandardWorksets = true;
-                                    postWorkRelinquish.FamilyWorksets = true;
-                                    postWorkRelinquish.ViewWorksets = true;
-                                    postWorkRelinquish.UserWorksets = true;
-                                    WorksharingUtils.RelinquishOwnership(postSyncDoc, postWorkRelinquish, new TransactWithCentralOptions());
-                                    System.Diagnostics.Debug.WriteLine("   🔓 Post-sync work relinquish completed");
-                                }
-                            }
-                            catch (Exception relEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"   ⚠️ Post-sync work relinquish failed: {relEx.Message}");
-                            }
-
-                            // Build a brief notice of what changed
-                            string changes = "";
-                            if (familiesUpdated) changes += "• Portfolio families were updated\n";
-                            if (topNotesUpdated > 0) changes += $"• {topNotesUpdated} top note(s) updated\n";
-
-                            TaskDialog.Show("VRS — Sync Again Recommended",
-                                "The following changes were applied after your sync:\n\n" +
-                                changes + "\n" +
-                                "Please Sync to Central again to push these changes.");
-                        }
-
-                        // STEP 5: Refresh the portfolio pane
-                        try
-                        {
-                            PortfolioManagePane.RefreshCurrentPane();
-                        }
-                        catch { }
-
-                        SyncLog("POST-SYNC (Idling): Deferred work complete", postSyncPath);
-                        System.Diagnostics.Debug.WriteLine("   ✅ Deferred post-sync work complete");
+                        TaskDialog.Show("VRS — Relinquish Failed",
+                            $"Could not release element ownership after sync:\n\n{relEx.Message}\n\n" +
+                            "Try using Collaborate → Relinquish All Mine manually.");
                     }
                 }
 
@@ -1234,22 +1175,15 @@ namespace ViewReferenceSystem
                 Document doc = _pendingOpenUpdateDoc;
                 _pendingOpenUpdateDoc = null;
 
-                // Handle auto-migrate (runs even if pendingOpenUpdateDoc is different)
-                Document migrateDoc = _pendingAutoMigrateDoc;
-                _pendingAutoMigrateDoc = null;
-                if (migrateDoc != null && migrateDoc.IsValidObject)
-                {
-                    string localPath = PortfolioSettings.GetJsonPath(migrateDoc);
-                    if (!string.IsNullOrEmpty(localPath) && !FirebaseClient.IsFirebasePath(localPath) && File.Exists(localPath))
-                        CheckAndAutoMigrate(migrateDoc, localPath);
-                }
-
                 if (doc == null || !doc.IsValidObject) return;
 
                 string portfolioPath = PortfolioSettings.GetJsonPath(doc);
                 if (string.IsNullOrEmpty(portfolioPath)) return;
-                if (!FirebaseClient.IsFirebasePath(portfolioPath) && !File.Exists(portfolioPath))
+                if (!FirebaseClient.IsFirebasePath(portfolioPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("   ⏭️ Non-Firebase path — skipping project-open update");
                     return;
+                }
 
                 System.Diagnostics.Debug.WriteLine($"📂 Project-open update for: {doc.Title}");
                 SyncLog("═══════════════════════════════════════════", portfolioPath);
@@ -1297,6 +1231,68 @@ namespace ViewReferenceSystem
                     try { _uiControlledApp.Idling -= OnIdling_ProjectOpenUpdate; } catch { }
                     _openUpdateIdlingSubscribed = false;
                 }
+            }
+        }
+
+        #endregion
+
+        #region Breadcrumb Handling
+
+        /// <summary>
+        /// Called after a null portfolio load.
+        /// Checks FirebaseClient pending flags set by LoadPortfolioFromFile and acts on them:
+        ///   - PendingPathUpdate: silently updates stored path and shows one-time toast
+        ///   - PendingArchivedNotice: shows a one-time TaskDialog and disables sync
+        /// </summary>
+        private static void HandleBreadcrumbState(Document doc, string currentPath)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(FirebaseClient.PendingPathUpdate))
+                {
+                    string newPath = FirebaseClient.PendingPathUpdate;
+                    FirebaseClient.PendingPathUpdate = null;
+
+                    System.Diagnostics.Debug.WriteLine($"🔀 Auto-healing path: {currentPath} → {newPath}");
+
+                    try
+                    {
+                        using (Transaction trans = new Transaction(doc, "Update Portfolio Path"))
+                        {
+                            trans.Start();
+                            PortfolioSettings.SetJsonPath(doc, newPath);
+                            trans.Commit();
+                        }
+
+                        TaskDialog td = new TaskDialog("VRS — Portfolio Path Updated");
+                        td.MainIcon = TaskDialogIcon.TaskDialogIconInformation;
+                        td.MainInstruction = "Portfolio path updated automatically";
+                        td.MainContent = $"This portfolio was moved to a new location.\n\nNew path: {newPath}\n\nThe path has been updated in this project. No action required.";
+                        td.CommonButtons = TaskDialogCommonButtons.Ok;
+                        td.Show();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Could not auto-update path: {ex.Message}");
+                    }
+                }
+                else if (FirebaseClient.PendingArchivedNotice)
+                {
+                    FirebaseClient.PendingArchivedNotice = false;
+
+                    System.Diagnostics.Debug.WriteLine("📦 Showing archived portfolio notice");
+
+                    TaskDialog td = new TaskDialog("VRS — Portfolio Archived");
+                    td.MainIcon = TaskDialogIcon.TaskDialogIconWarning;
+                    td.MainInstruction = "This portfolio has been archived";
+                    td.MainContent = "Detail references are read-only. Portfolio sync is paused until the portfolio is restored.\n\nContact: scott.thoreson@imegcorp.com";
+                    td.CommonButtons = TaskDialogCommonButtons.Ok;
+                    td.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ HandleBreadcrumbState error: {ex.Message}");
             }
         }
 
@@ -1460,10 +1456,8 @@ namespace ViewReferenceSystem
 
                 System.Diagnostics.Debug.WriteLine($"   💾 Portfolio file saved: {portfolioPath}");
                 // NOTE: "Update Portfolio Sync Time" transaction and RelinquishOwnership removed from here.
-                // Transactions during pre-sync crash Revit 2025. Family updates, top notes, migration,
-                // and relinquish are all deferred to OnIdling_ProjectOpenUpdate where Revit is fully idle.
-                // SetLastSyncTimestamp is NOT called — the JSON LastSync above is sufficient.
-                // Writing to ProjectInformation creates local changes that prevent clean relinquish.
+                // Transactions during pre-sync crash Revit 2025. Sync timestamp and relinquish
+                // are handled in OnDocumentSynchronizedWithCentral (post-sync) where transactions are safe.
             }
             catch (Exception ex)
             {
@@ -1780,12 +1774,12 @@ namespace ViewReferenceSystem
         /// Called post-sync so transactions are allowed. Only updates views that belong to the current project.
         /// Also pulls top notes from OTHER projects' views and updates any placed detail family instances.
         /// </summary>
-        private int PushTopNotesToRevit(Document doc, string portfolioPath)
+        private void PushTopNotesToRevit(Document doc, string portfolioPath)
         {
             try
             {
                 var portfolioData = PortfolioSettings.LoadPortfolioFromFile(portfolioPath);
-                if (portfolioData?.Views == null) return 0;
+                if (portfolioData?.Views == null) return;
 
                 string currentProjectName = PortfolioSettings.GetProjectName(doc);
 
@@ -1799,7 +1793,7 @@ namespace ViewReferenceSystem
                     }
                 }
 
-                if (topNoteLookup.Count == 0) return 0;
+                if (topNoteLookup.Count == 0) return;
 
                 int updated = 0;
                 int skipped = 0;
@@ -1854,13 +1848,11 @@ namespace ViewReferenceSystem
                         trans.RollBack();
                     }
                 }
-
-                return updated;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"⚠️ Error pushing top notes to Revit: {ex.Message}");
-                return 0;
+                // Non-critical — don't fail the sync
             }
         }
 

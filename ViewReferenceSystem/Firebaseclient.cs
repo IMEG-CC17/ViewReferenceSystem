@@ -98,6 +98,49 @@ namespace ViewReferenceSystem.Core
         }
         #endregion
 
+        #region Breadcrumb State — set by PortfolioSettings, consumed by Ribbon
+
+        /// <summary>
+        /// Set when LoadPortfolioFromFile finds a "moved" breadcrumb.
+        /// Ribbon reads this after a null portfolio load and auto-updates the stored path.
+        /// </summary>
+        public static string PendingPathUpdate { get; set; } = null;
+
+        /// <summary>
+        /// Set when LoadPortfolioFromFile finds an "archived" breadcrumb.
+        /// Ribbon reads this after a null portfolio load and shows a one-time notice.
+        /// </summary>
+        public static bool PendingArchivedNotice { get; set; } = false;
+
+        /// <summary>
+        /// Convert a Firebase path to a safe breadcrumb key (slashes → dashes).
+        /// "portfolios/denton/gmp-3" → "portfolios-denton-gmp-3"
+        /// </summary>
+        private static string PathToBreadcrumbKey(string firebasePath)
+            => firebasePath?.Replace("/", "-").Replace(".", "-") ?? "";
+
+        /// <summary>
+        /// Read a breadcrumb node for the given Firebase path.
+        /// Returns the JObject if a breadcrumb exists, null if none found.
+        /// </summary>
+        public static JObject ReadBreadcrumb(string firebasePath)
+        {
+            try
+            {
+                string key = PathToBreadcrumbKey(firebasePath);
+                string json = GetJson($"breadcrumbs/{key}");
+                if (string.IsNullOrEmpty(json) || json == "null") return null;
+                return JObject.Parse(json);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ ReadBreadcrumb failed for {firebasePath}: {ex.Message}");
+                return null;
+            }
+        }
+
+        #endregion
+
         #region Path Utilities
 
         /// <summary>
