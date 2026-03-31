@@ -34,23 +34,33 @@
     .version-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
     .version-text { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); }
     .version-num { font-family: 'DM Mono', monospace; font-size: 13px; color: white; }
-    .btn-download {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%; padding: 16px 32px; background: var(--red); color: white;
-      border-radius: 8px; font-family: 'DM Sans', sans-serif;
-      font-size: 15px; font-weight: 600; text-decoration: none;
-      transition: background 0.2s, transform 0.2s; margin-bottom: 20px;
+    .download-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
     }
-    .btn-download:hover { background: #A93226; transform: translateY(-1px); }
-
-    /* Warning box */
+    .btn-download {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 4px; padding: 16px 12px;
+      border-radius: 8px; text-decoration: none;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    .btn-download:hover { transform: translateY(-2px); opacity: 0.9; }
+    .btn-primary { background: var(--red); color: white; }
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+    }
+    .btn-label { font-size: 14px; font-weight: 600; }
+    .btn-sub { font-size: 11px; opacity: 0.7; }
     .warning-box {
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 20px;
-      text-align: left;
+      border-radius: 10px; padding: 20px;
+      margin-bottom: 20px; text-align: left;
     }
     .warning-title {
       font-size: 13px; font-weight: 600; color: #F0C080;
@@ -60,14 +70,13 @@
     .warning-steps { list-style: none; }
     .warning-steps li {
       display: flex; align-items: flex-start; gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
       font-size: 13px; color: #C8D4E0; line-height: 1.5;
     }
     .warning-steps li:last-child { border-bottom: none; }
     .step-num {
-      background: rgba(255,255,255,0.1);
-      color: white; font-weight: 600; font-size: 11px;
+      background: rgba(255,255,255,0.1); color: white;
+      font-weight: 600; font-size: 11px;
       width: 20px; height: 20px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; margin-top: 1px;
@@ -77,10 +86,8 @@
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       border-radius: 4px; padding: 1px 7px;
-      font-family: 'DM Mono', monospace;
-      font-size: 12px; color: white;
+      font-family: 'DM Mono', monospace; font-size: 12px; color: white;
     }
-
     .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 20px 0; }
     .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
     .help-text a { color: var(--muted); text-decoration: underline; }
@@ -102,34 +109,41 @@
       <span class="version-num" id="version">Loading...</span>
     </div>
 
-    <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_QuickInstall.exe" class="btn-download">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
-      </svg>
-      Download Quick Install
-    </a>
+    <div class="download-grid">
+      <a href="https://github.com/IMEG-CC17/ViewReferenceSystem/releases/latest/download/VRS_QuickInstall.exe"
+         class="btn-download btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+        </svg>
+        <span class="btn-label">Quick Install</span>
+        <span class="btn-sub">Installs Revit add-in</span>
+      </a>
+      <a href="https://github.com/IMEG-CC17/VRSManager/releases/latest/download/VRSManager_Setup.exe"
+         class="btn-download btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <span class="btn-label">VRS Manager</span>
+        <span class="btn-sub">Advanced management tool</span>
+      </a>
+    </div>
 
-    <!-- Windows SmartScreen warning instructions -->
     <div class="warning-box">
       <div class="warning-title">
-        <span>⚠️</span> Windows will warn you about this file — here's what to do:
+        <span>&#9888;</span> Windows will warn you about these files:
       </div>
       <ul class="warning-steps">
         <li>
           <div class="step-num">1</div>
-          <div>After downloading, you'll see <em>"VRS_QuickInstall.exe isn't commonly downloaded"</em> in your browser. Click the <span class="step-key">...</span> menu next to the warning.</div>
+          <div>After downloading you'll see <em>"isn't commonly downloaded"</em>. Click the <span class="step-key">...</span> menu next to the warning.</div>
         </li>
         <li>
           <div class="step-num">2</div>
-          <div>Click <span class="step-key">Keep</span> in the dropdown that appears.</div>
+          <div>Click <span class="step-key">Keep</span> in the dropdown.</div>
         </li>
         <li>
           <div class="step-num">3</div>
-          <div>A second screen appears saying "Make sure you trust this file." Click the <span class="step-key">∨</span> arrow next to Delete, then click <span class="step-key">Keep anyway</span>.</div>
-        </li>
-        <li>
-          <div class="step-num">4</div>
-          <div>Run the file. It will find your Revit installations and install the add-in automatically.</div>
+          <div>Click the <span class="step-key">&#8964;</span> arrow next to Delete, then click <span class="step-key">Keep anyway</span>.</div>
         </li>
       </ul>
     </div>
@@ -138,11 +152,11 @@
     <p class="help-text" id="release-notes">Loading release notes...</p>
     <div class="divider"></div>
     <p class="help-text">
-      Supports Revit 2022-2026 &nbsp;·&nbsp; Windows only<br>
+      Supports Revit 2022-2026 &nbsp;&#183;&nbsp; Windows only<br>
       Questions? <a href="mailto:scott.thoreson@imegcorp.com">scott.thoreson@imegcorp.com</a>
     </p>
   </div>
-  <footer>IMEG CC17 — Structural Engineering Tools</footer>
+  <footer>IMEG CC17 &#8212; Structural Engineering Tools</footer>
 
 <script>
   const DB='https://view-reference-default-rtdb.firebaseio.com';
