@@ -329,6 +329,7 @@ namespace ViewReferenceSystem.UI
                     Nickname = projectName,
                     IsTypicalDetailsAuthority = false,
                     LastSync = DateTime.Now,
+                    LastSyncUser = _currentDocument?.Application?.Username,
                     Status = "active"
                 });
             }
@@ -343,6 +344,7 @@ namespace ViewReferenceSystem.UI
 
                 existingProject.ProjectGuid = projectGuid;
                 existingProject.LastSync = DateTime.Now;
+                existingProject.LastSyncUser = _currentDocument?.Application?.Username;
                 Log($"      Updated existing project: {projectName}");
             }
         }

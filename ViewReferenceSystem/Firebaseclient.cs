@@ -914,6 +914,97 @@ namespace ViewReferenceSystem.Core
             }
         }
 
+        /// <summary>
+        /// List all portfolios across Firebase — both flat (portfolios/name) and
+        /// two-level (portfolios/folder/name). Returns full Firebase paths.
+        /// </summary>
+        public static List<string> ListAllPortfolios()
+        {
+            var result = new List<string>();
+            try
+            {
+                string token = GetToken();
+                string url = $"{DatabaseUrl}/portfolios.json?auth={token}&shallow=true";
+                var response = _http.GetAsync(url).Result;
+                response.EnsureSuccessStatusCode();
+                string raw = response.Content.ReadAsStringAsync().Result;
+
+                if (string.IsNullOrEmpty(raw) || raw == "null")
+                    return result;
+
+                var topKeys = JObject.Parse(raw).Properties().Select(p => p.Name).OrderBy(n => n).ToList();
+
+                // Known direct-portfolio field names — if any child key matches, it's a flat portfolio
+                var portfolioFields = new HashSet<string>
+                    { "PortfolioGuid", "PortfolioName", "Views", "DataVersion", "ProjectInfos", "MonitoredFamilies", "FirebasePath" };
+
+                foreach (var key in topKeys)
+                {
+                    string shallowUrl = $"{DatabaseUrl}/portfolios/{key}.json?auth={token}&shallow=true";
+                    var shallowResp = _http.GetAsync(shallowUrl).Result;
+                    if (!shallowResp.IsSuccessStatusCode) continue;
+                    string shallowRaw = shallowResp.Content.ReadAsStringAsync().Result;
+                    if (string.IsNullOrEmpty(shallowRaw) || shallowRaw == "null") continue;
+
+                    var childKeys = JObject.Parse(shallowRaw).Properties().Select(p => p.Name).ToHashSet();
+
+                    if (childKeys.Overlaps(portfolioFields) || childKeys.Contains("portfolio"))
+                    {
+                        // Portfolio at portfolios/{key} — either legacy flat fields or new /portfolio data node
+                        result.Add($"portfolios/{key}");
+                    }
+                    else
+                    {
+                        // Folder — each child is a portfolio name
+                        foreach (var subKey in childKeys.OrderBy(k => k))
+                            result.Add($"portfolios/{key}/{subKey}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Firebase: could not list all portfolios: {ex.Message}");
+            }
+            return result.OrderBy(p => p).ToList();
+        }
+
+        /// <summary>
+        /// Get the installed plugin version last reported by a user.
+        /// Returns null if no version has been recorded for this user.
+        /// </summary>
+        public static string GetUserVersion(string sanitizedUsername)
+        {
+            try
+            {
+                string raw = GetJson($"user-versions/{sanitizedUsername}/version");
+                if (string.IsNullOrEmpty(raw) || raw == "null") return null;
+                return raw.Trim('"');
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Firebase: GetUserVersion failed for {sanitizedUsername}: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Record the installed plugin version for a user in Firebase.
+        /// </summary>
+        public static void SetUserVersion(string sanitizedUsername, string version)
+        {
+            try
+            {
+                string json = $"{{\"version\":\"{version}\",\"updatedAt\":\"{DateTime.UtcNow:o}\"}}";
+                PutJson($"user-versions/{sanitizedUsername}", json);
+                System.Diagnostics.Debug.WriteLine($"✅ Firebase: recorded version {version} for {sanitizedUsername}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Firebase: SetUserVersion failed for {sanitizedUsername}: {ex.Message}");
+                throw;
+            }
+        }
+
         #endregion
 
         #region Low-level HTTP helpers

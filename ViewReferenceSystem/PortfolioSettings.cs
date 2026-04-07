@@ -1101,6 +1101,9 @@ namespace ViewReferenceSystem.Core
             public DateTime LastSync { get; set; }
             public string Status { get; set; }
 
+            [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public string LastSyncUser { get; set; }
+
             /// <summary>
             /// True once this project has updated its ViewReference_JsonPath to the Firebase path.
             /// Set to false for all sibling projects when a migration is initiated.

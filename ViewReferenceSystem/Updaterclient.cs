@@ -53,7 +53,6 @@ namespace ViewReferenceSystem.Updater
             "ViewReferenceSystem.dll.config",
             "Newtonsoft.Json.dll",
             "DetailReferenceFamily.rfa",
-            "VRS_version.txt",
 
             // Roslyn compiler DLLs (optional — AI Family Generator on Revit 2025+)
             "Microsoft.CodeAnalysis.dll",
@@ -140,8 +139,7 @@ namespace ViewReferenceSystem.Updater
         }
 
         /// <summary>
-        /// Current installed version — read from version.txt next to the DLL.
-        /// This file is included in every install/update package.
+        /// Current installed version — read directly from the assembly version.
         /// </summary>
         public static Version CurrentVersion
         {
@@ -149,20 +147,10 @@ namespace ViewReferenceSystem.Updater
             {
                 try
                 {
-                    string versionFile = Path.Combine(
-                        Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-                        "VRS_version.txt");
-                    if (File.Exists(versionFile))
-                    {
-                        string raw = File.ReadAllText(versionFile).Trim();
-                        // Handle "3.0.0.0 Development" — take first token only
-                        string v = raw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-                        if (!string.IsNullOrEmpty(v))
-                            return new Version(v);
-                    }
+                    return Assembly.GetExecutingAssembly().GetName().Version;
                 }
                 catch { }
-                return new Version(0, 0, 0); // Unknown — will always trigger update
+                return new Version(0, 0, 0);
             }
         }
 
@@ -304,6 +292,7 @@ namespace ViewReferenceSystem.Updater
                     }
                 }
 
+                WriteWaiterScript(tempFolder, version);
                 result.Success = true;
                 System.Diagnostics.Debug.WriteLine($"✅ Updater: all files downloaded to {tempFolder}");
             }
@@ -348,7 +337,6 @@ namespace ViewReferenceSystem.Updater
         {
             string scriptPath = Path.Combine(tempFolder, "install_update.ps1");
 
-            // Build file list from temp folder
             string sourceFolder = tempFolder.Replace("\\", "\\\\");
 
             string scriptContent = $@"
@@ -512,17 +500,10 @@ try {{ Remove-Item -Path $sourceFolder -Recurse -Force -ErrorAction SilentlyCont
 
             string storagePath = $"installer/{channel}";
 
-            // Auto-generate VRS_version.txt in temp (don't modify source folder)
-            string tempVersionTxt = Path.Combine(Path.GetTempPath(), "VRS_version.txt");
-            File.WriteAllText(tempVersionTxt, version);
-
             // Upload each file
             foreach (string fileName in UpdateFiles)
             {
-                // VRS_version.txt comes from temp, everything else from source folder
-                string localPath = fileName == "VRS_version.txt"
-                    ? tempVersionTxt
-                    : Path.Combine(sourceFolder, fileName);
+                string localPath = Path.Combine(sourceFolder, fileName);
                 if (!File.Exists(localPath))
                 {
                     if (RequiredFiles.Contains(fileName))
@@ -539,11 +520,9 @@ try {{ Remove-Item -Path $sourceFolder -Recurse -Force -ErrorAction SilentlyCont
                 System.Diagnostics.Debug.WriteLine($"   ✅ Uploaded: {fileName}");
             }
 
-            // Update version.json in Realtime Database
+            // Update version info in Realtime Database
             progressCallback?.Invoke("Updating version info...");
 
-            // Clean up temp version file
-            try { File.Delete(tempVersionTxt); } catch { }
             var versionInfo = new
             {
                 version = version,

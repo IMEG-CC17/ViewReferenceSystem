@@ -39,7 +39,6 @@ namespace ViewReferenceSystem.UI
         private Button _createNewButton;
         private Button _joinExistingButton;
         private Button _loadTopNotesButton;
-        private Button _migrateToFirebaseButton;
         private StackPanel _projectsPanel;
         private Button _closeButton;
         private TextBlock _statusText;
@@ -176,10 +175,7 @@ namespace ViewReferenceSystem.UI
             _loadTopNotesButton.Margin = new Thickness(0, 0, 6, 0);
             buttonPanel.Children.Add(_loadTopNotesButton);
 
-            _migrateToFirebaseButton = CreateRevitButton("Migrate to Firebase");
-            _migrateToFirebaseButton.Click += MigrateToFirebase_Click;
-            _migrateToFirebaseButton.ToolTip = "Move this portfolio from a local file to Firebase cloud storage";
-            buttonPanel.Children.Add(_migrateToFirebaseButton);
+
 
             WpfGrid.SetRow(buttonPanel, 2);
             mainGrid.Children.Add(buttonPanel);
@@ -364,16 +360,15 @@ namespace ViewReferenceSystem.UI
                 if (dialog.ShowDialog() != true)
                     return;
 
-                string projectFolder = dialog.ProjectFolder;
-                string portfolioName = dialog.PortfolioName;
-                string firebasePath = FirebaseClient.BuildPath(projectFolder, portfolioName);
+                string firebasePath = dialog.FirebasePath;
+                string portfolioName = firebasePath.Split('/').Last();
 
                 // Check if path already exists
                 UpdateStatus("Checking Firebase...");
                 if (FirebaseClient.PathExists(firebasePath))
                 {
                     ShowError("Portfolio Already Exists",
-                        $"A portfolio already exists at:\n{firebasePath}\n\nChoose a different folder or portfolio name.");
+                        $"A portfolio already exists at:\n{firebasePath}\n\nChoose a different portfolio name.");
                     return;
                 }
 
@@ -888,8 +883,7 @@ namespace ViewReferenceSystem.UI
                 var dialog = new FirebasePortfolioNameDialog(isCreate: false);
                 if (dialog.ShowDialog() == true)
                 {
-                    string firebasePath = FirebaseClient.BuildPath(dialog.ProjectFolder, dialog.PortfolioName);
-                    JoinExistingPortfolio(firebasePath);
+                    JoinExistingPortfolio(dialog.FirebasePath);
                 }
                 else if (dialog.BrowseLocalFile)
                 {
@@ -1188,146 +1182,26 @@ namespace ViewReferenceSystem.UI
             }
         }
 
-        #region Migrate to Firebase
-
-        private void MigrateToFirebase_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_portfolioData == null || string.IsNullOrEmpty(_portfolioFilePath))
-                {
-                    ShowError("No Portfolio", "No portfolio is currently loaded.");
-                    return;
-                }
-
-                if (FirebaseClient.IsFirebasePath(_portfolioFilePath))
-                {
-                    MessageBox.Show("This portfolio is already in Firebase.", "Already Migrated",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                // Suggest a name based on current portfolio name
-                string suggestedFolder = FirebaseClient.SanitizeName(
-                    _portfolioData.PortfolioName ?? "project");
-                string suggestedName = "package-1";
-
-                var dialog = new FirebasePortfolioNameDialog(isCreate: true,
-                    defaultFolder: suggestedFolder, defaultName: suggestedName);
-                dialog.Title = "Migrate Portfolio to Firebase";
-
-                if (dialog.ShowDialog() != true) return;
-
-                string projectFolder = dialog.ProjectFolder;
-                string portfolioName = dialog.PortfolioName;
-                string firebasePath = FirebaseClient.BuildPath(projectFolder, portfolioName);
-
-                // Check uniqueness
-                UpdateStatus("Checking Firebase...");
-                if (FirebaseClient.PathExists(firebasePath))
-                {
-                    ShowError("Path Already Exists",
-                        $"A portfolio already exists at:\n{firebasePath}\n\nChoose a different name.");
-                    return;
-                }
-
-                UpdateStatus("Migrating portfolio to Firebase...");
-
-                // 1. Upload all RFA files from local Families folder
-                string localFamiliesFolder = PortfolioSettings.GetFamiliesFolderPath(_portfolioFilePath);
-                if (Directory.Exists(localFamiliesFolder))
-                {
-                    foreach (string rfaPath in Directory.GetFiles(localFamiliesFolder, "*.rfa"))
-                    {
-                        string fileName = Path.GetFileName(rfaPath);
-                        UpdateStatus($"Uploading {fileName}...");
-                        FirebaseClient.UploadFamily(rfaPath, fileName, firebasePath);
-                        System.Diagnostics.Debug.WriteLine($"   ✅ Uploaded: {fileName}");
-                    }
-                }
-
-                // 2. Mark all OTHER projects as IsMigrated=false (they need to auto-update their path)
-                string currentProjectName = PortfolioSettings.GetProjectName(_currentDocument);
-                string currentProjectGuid = PortfolioSettings.GetProjectGuid(_currentDocument);
-
-                foreach (var project in _portfolioData.ProjectInfos ?? new List<PortfolioSettings.PortfolioProject>())
-                {
-                    bool isCurrentProject =
-                        (!string.IsNullOrEmpty(project.ProjectGuid) &&
-                         string.Equals(project.ProjectGuid, currentProjectGuid, StringComparison.OrdinalIgnoreCase)) ||
-                        string.Equals(project.ProjectName, currentProjectName, StringComparison.OrdinalIgnoreCase);
-
-                    project.IsMigrated = isCurrentProject;
-                }
-
-                // 3. Upload portfolio JSON to Firebase (mark FirebasePath inside it)
-                _portfolioData.FirebasePath = firebasePath;
-                UpdateStatus("Uploading portfolio data...");
-                string json = JsonConvert.SerializeObject(_portfolioData, Formatting.Indented);
-                FirebaseClient.WritePortfolio(firebasePath, json);
-
-                // Also write FirebasePath into the LOCAL JSON so sibling projects detect migration on sync
-                File.WriteAllText(_portfolioFilePath, json);
-
-                // 4. Update this project's ViewReference_JsonPath to the Firebase path
-                using (Transaction trans = new Transaction(_currentDocument, "Update Portfolio Path"))
-                {
-                    trans.Start();
-                    PortfolioSettings.SetJsonPath(_currentDocument, firebasePath);
-                    trans.Commit();
-                }
-
-                // 5. Update local state
-                _portfolioFilePath = firebasePath;
-                _portfolioFilePathDisplay.Text = $"Firebase: {firebasePath}";
-                _portfolioFilePathDisplay.FontStyle = FontStyles.Normal;
-                _portfolioFilePathDisplay.Foreground = new SolidColorBrush(RevitText);
-
-                UpdateStatus("✅ Migration complete!");
-
-                MessageBox.Show(
-                    $"Portfolio successfully migrated to Firebase!\n\n" +
-                    $"Firebase path: {firebasePath}\n\n" +
-                    $"Other projects in this portfolio will be automatically updated to the Firebase path " +
-                    $"the next time they Sync to Central.",
-                    "Migration Complete",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-
-                System.Diagnostics.Debug.WriteLine($"✅ Migration complete: {firebasePath}");
-            }
-            catch (Exception ex)
-            {
-                ShowError("Migration Error", ex.Message);
-                UpdateStatus("Migration failed");
-            }
-        }
-
-        #endregion
-
         #endregion
     }
 
     // =====================================================================
     // Firebase Portfolio Name Dialog
-    // Shown when creating a new portfolio or joining an existing one
-    // Join mode: Both Project Folder and Portfolio Name are dropdowns
-    //            populated from Firebase (browse-style, no guessing)
-    // Create mode: Both are free-text entry boxes
+    // Shown when creating a new portfolio or joining an existing one.
+    // Create mode: single Portfolio Name text box — path stored as portfolios/{name}
+    // Join mode:   dropdown populated from ALL Firebase portfolios (flat and two-level)
     // =====================================================================
     public class FirebasePortfolioNameDialog : Window
     {
-        public string ProjectFolder { get; private set; }
-        public string PortfolioName { get; private set; }
+        /// <summary>Full Firebase path, e.g. "portfolios/my-portfolio" or "portfolios/folder/name".</summary>
+        public string FirebasePath { get; private set; }
         public bool BrowseLocalFile { get; private set; } = false;
 
-        private WpfTextBox _folderBox;       // Create mode: editable text
-        private WpfTextBox _nameBox;         // Create mode: editable text
-        private WpfComboBox _folderCombo;    // Join mode: dropdown
-        private WpfComboBox _nameCombo;      // Join mode: dropdown
+        private WpfTextBox _nameBox;         // Create mode
+        private WpfComboBox _nameCombo;      // Join mode
         private TextBlock _previewText;
         private TextBlock _errorText;
-        private TextBlock _nameHintText;     // Shows "No portfolios found" or count
+        private TextBlock _nameHintText;
         private Button _confirmButton;
         private readonly bool _isCreate;
 
@@ -1338,21 +1212,20 @@ namespace ViewReferenceSystem.UI
         private static readonly WpfColor RevitMuted = WpfColor.FromRgb(100, 100, 100);
         private static readonly WpfColor RevitError = WpfColor.FromRgb(180, 0, 0);
 
-        public FirebasePortfolioNameDialog(bool isCreate,
-            string defaultFolder = "", string defaultName = "package-1")
+        public FirebasePortfolioNameDialog(bool isCreate, string defaultName = "package-1")
         {
             _isCreate = isCreate;
             Title = isCreate ? "Create New Portfolio in Firebase" : "Join Existing Firebase Portfolio";
             Width = 480;
-            Height = isCreate ? 340 : 380;
+            Height = isCreate ? 280 : 300;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             ResizeMode = ResizeMode.NoResize;
             Background = new SolidColorBrush(RevitBackground);
 
-            BuildUI(defaultFolder, defaultName);
+            BuildUI(defaultName);
         }
 
-        private void BuildUI(string defaultFolder, string defaultName)
+        private void BuildUI(string defaultName)
         {
             var stack = new StackPanel { Margin = new Thickness(16) };
 
@@ -1360,89 +1233,11 @@ namespace ViewReferenceSystem.UI
             stack.Children.Add(new TextBlock
             {
                 Text = _isCreate
-                    ? "Choose a Project Folder and Portfolio Name for this portfolio in Firebase."
-                    : "Browse and select the Firebase portfolio to join.",
+                    ? "Enter a name for the new portfolio. It will be stored at portfolios/{name} in Firebase."
+                    : "Select the Firebase portfolio to join.",
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = new SolidColorBrush(RevitMuted),
                 Margin = new Thickness(0, 0, 0, 12)
-            });
-
-            // ─── Project Folder ───
-            stack.Children.Add(new TextBlock
-            {
-                Text = "Project Folder:",
-                Foreground = new SolidColorBrush(RevitText),
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-
-            if (!_isCreate)
-            {
-                // JOIN MODE: Dropdown populated from Firebase
-                _folderCombo = new WpfComboBox
-                {
-                    Height = 26,
-                    Margin = new Thickness(0, 0, 0, 2),
-                    BorderBrush = new SolidColorBrush(RevitBorder),
-                    IsEditable = true  // Allow typing to filter/search
-                };
-
-                try
-                {
-                    var folders = FirebaseClient.ListProjectFolders();
-                    foreach (var f in folders) _folderCombo.Items.Add(f);
-
-                    if (folders.Count == 0)
-                    {
-                        _folderCombo.Text = "(no project folders found)";
-                        _folderCombo.IsEnabled = false;
-                    }
-                    else if (folders.Count > 0)
-                    {
-                        _folderCombo.SelectedIndex = 0;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠️ Could not list Firebase folders: {ex.Message}");
-                    _folderCombo.Text = "(error loading folders)";
-                    _folderCombo.IsEnabled = false;
-                }
-
-                _folderCombo.SelectionChanged += (s, e) =>
-                {
-                    if (_folderCombo.SelectedItem != null)
-                    {
-                        RefreshPortfolioList(_folderCombo.SelectedItem.ToString());
-                        UpdatePreview();
-                    }
-                };
-                stack.Children.Add(_folderCombo);
-
-                // Hidden text box not needed in join mode
-                _folderBox = new WpfTextBox { Visibility = System.Windows.Visibility.Collapsed };
-                stack.Children.Add(_folderBox);
-            }
-            else
-            {
-                // CREATE MODE: Free-text entry
-                _folderBox = new WpfTextBox
-                {
-                    Text = defaultFolder,
-                    Height = 26,
-                    Padding = new Thickness(4, 2, 4, 2),
-                    BorderBrush = new SolidColorBrush(RevitBorder),
-                    Margin = new Thickness(0, 0, 0, 2)
-                };
-                _folderBox.TextChanged += (s, e) => UpdatePreview();
-                stack.Children.Add(_folderBox);
-            }
-
-            stack.Children.Add(new TextBlock
-            {
-                Text = _isCreate ? "e.g. 4220156-control-ops  (no spaces)" : "Type in the dropdown to search",
-                FontSize = 10,
-                Foreground = new SolidColorBrush(RevitMuted),
-                Margin = new Thickness(0, 0, 0, 10)
             });
 
             // ─── Portfolio Name ───
@@ -1453,48 +1248,8 @@ namespace ViewReferenceSystem.UI
                 Margin = new Thickness(0, 0, 0, 4)
             });
 
-            if (!_isCreate)
+            if (_isCreate)
             {
-                // JOIN MODE: Dropdown populated when folder is selected
-                _nameCombo = new WpfComboBox
-                {
-                    Height = 26,
-                    Margin = new Thickness(0, 0, 0, 2),
-                    BorderBrush = new SolidColorBrush(RevitBorder),
-                    IsEditable = true  // Allow typing to filter/search
-                };
-
-                _nameCombo.SelectionChanged += (s, e) => UpdatePreview();
-
-                // Also update preview when user types in the editable combo
-                _nameCombo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
-                    new TextChangedEventHandler((s, e) => UpdatePreview()));
-
-                stack.Children.Add(_nameCombo);
-
-                // Hint text below the dropdown
-                _nameHintText = new TextBlock
-                {
-                    Text = "Select a project folder first",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(RevitMuted),
-                    Margin = new Thickness(0, 0, 0, 10)
-                };
-                stack.Children.Add(_nameHintText);
-
-                // Hidden text box not needed
-                _nameBox = new WpfTextBox { Visibility = System.Windows.Visibility.Collapsed };
-                stack.Children.Add(_nameBox);
-
-                // Auto-load portfolios for the initially selected folder
-                if (_folderCombo?.SelectedItem != null)
-                {
-                    RefreshPortfolioList(_folderCombo.SelectedItem.ToString());
-                }
-            }
-            else
-            {
-                // CREATE MODE: Free-text entry
                 _nameBox = new WpfTextBox
                 {
                     Text = defaultName,
@@ -1513,6 +1268,56 @@ namespace ViewReferenceSystem.UI
                     Foreground = new SolidColorBrush(RevitMuted),
                     Margin = new Thickness(0, 0, 0, 10)
                 });
+            }
+            else
+            {
+                // JOIN MODE: Dropdown populated from ALL Firebase portfolios
+                _nameCombo = new WpfComboBox
+                {
+                    Height = 26,
+                    Margin = new Thickness(0, 0, 0, 2),
+                    BorderBrush = new SolidColorBrush(RevitBorder),
+                    IsEditable = true
+                };
+
+                try
+                {
+                    var allPortfolios = FirebaseClient.ListAllPortfolios();
+                    foreach (var p in allPortfolios) _nameCombo.Items.Add(p);
+
+                    if (allPortfolios.Count == 0)
+                    {
+                        _nameCombo.Text = "(no portfolios found)";
+                        _nameCombo.IsEnabled = false;
+                    }
+                    else
+                    {
+                        _nameCombo.SelectedIndex = 0;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Could not list Firebase portfolios: {ex.Message}");
+                    _nameCombo.Text = "(error loading portfolios)";
+                    _nameCombo.IsEnabled = false;
+                }
+
+                _nameCombo.SelectionChanged += (s, e) => UpdatePreview();
+                _nameCombo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+                    new TextChangedEventHandler((s, e) => UpdatePreview()));
+
+                stack.Children.Add(_nameCombo);
+
+                _nameHintText = new TextBlock
+                {
+                    Text = _nameCombo.Items.Count > 0
+                        ? $"{_nameCombo.Items.Count} portfolio{(_nameCombo.Items.Count == 1 ? "" : "s")} found"
+                        : "No portfolios found in Firebase",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(RevitMuted),
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                stack.Children.Add(_nameHintText);
             }
 
             // ─── Preview ───
@@ -1597,105 +1402,67 @@ namespace ViewReferenceSystem.UI
             UpdatePreview();
         }
 
-        /// <summary>
-        /// Populate the Portfolio Name dropdown from Firebase when folder changes (Join mode only)
-        /// </summary>
-        private void RefreshPortfolioList(string folder)
+        private string GetCurrentInput()
         {
-            if (_nameCombo == null) return;
-
-            _nameCombo.Items.Clear();
-            _nameCombo.Text = "";
-
-            if (string.IsNullOrEmpty(folder))
-            {
-                if (_nameHintText != null) _nameHintText.Text = "Select a project folder first";
-                _nameCombo.IsEnabled = false;
-                UpdatePreview();
-                return;
-            }
-
-            try
-            {
-                var portfolios = FirebaseClient.ListPortfoliosInFolder(folder);
-
-                if (portfolios.Count == 0)
-                {
-                    if (_nameHintText != null) _nameHintText.Text = "No portfolios found in this folder";
-                    _nameCombo.IsEnabled = false;
-                }
-                else
-                {
-                    _nameCombo.IsEnabled = true;
-                    foreach (var p in portfolios) _nameCombo.Items.Add(p);
-                    _nameCombo.SelectedIndex = 0;
-
-                    if (_nameHintText != null)
-                        _nameHintText.Text = $"{portfolios.Count} portfolio{(portfolios.Count == 1 ? "" : "s")} found";
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"⚠️ Could not list portfolios in {folder}: {ex.Message}");
-                if (_nameHintText != null) _nameHintText.Text = "Error loading portfolios";
-                _nameCombo.IsEnabled = false;
-            }
-
-            UpdatePreview();
-        }
-
-        private string GetCurrentFolder()
-        {
-            if (!_isCreate && _folderCombo != null)
-                return _folderCombo.SelectedItem?.ToString() ?? _folderCombo.Text ?? "";
-            return _folderBox?.Text ?? "";
-        }
-
-        private string GetCurrentName()
-        {
-            if (!_isCreate && _nameCombo != null)
-                return _nameCombo.SelectedItem?.ToString() ?? _nameCombo.Text ?? "";
-            return _nameBox?.Text ?? "";
+            if (_isCreate)
+                return _nameBox?.Text ?? "";
+            return _nameCombo?.SelectedItem?.ToString() ?? _nameCombo?.Text ?? "";
         }
 
         private void UpdatePreview()
         {
-            string folder = FirebaseClient.SanitizeName(GetCurrentFolder());
-            string name = FirebaseClient.SanitizeName(GetCurrentName());
-
-            if (string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(name))
+            if (_isCreate)
             {
-                if (_previewText != null)
+                string sanitized = FirebaseClient.SanitizeName(GetCurrentInput());
+                if (string.IsNullOrEmpty(sanitized))
+                {
                     _previewText.Text = "portfolios/ ...";
-                if (_confirmButton != null)
                     _confirmButton.IsEnabled = false;
-                return;
+                    return;
+                }
+                _previewText.Text = $"portfolios/{sanitized}";
+                _confirmButton.IsEnabled = true;
+            }
+            else
+            {
+                string selected = GetCurrentInput();
+                if (string.IsNullOrEmpty(selected))
+                {
+                    _previewText.Text = "portfolios/ ...";
+                    _confirmButton.IsEnabled = false;
+                    return;
+                }
+                // Join mode items are already full paths (e.g. "portfolios/name")
+                _previewText.Text = selected;
+                _confirmButton.IsEnabled = true;
             }
 
-            string path = FirebaseClient.BuildPath(folder, name);
-            if (_previewText != null)
-                _previewText.Text = path;
-
-            if (_confirmButton != null)
-                _confirmButton.IsEnabled = true;
-
-            if (_errorText != null)
-                _errorText.Visibility = System.Windows.Visibility.Collapsed;
+            _errorText.Visibility = System.Windows.Visibility.Collapsed;
         }
 
         private void ConfirmButton_Click(object sender, RoutedEventArgs e)
         {
-            ProjectFolder = FirebaseClient.SanitizeName(GetCurrentFolder());
-            PortfolioName = FirebaseClient.SanitizeName(GetCurrentName());
-
-            if (string.IsNullOrEmpty(ProjectFolder) || string.IsNullOrEmpty(PortfolioName))
+            if (_isCreate)
             {
-                if (_errorText != null)
+                string sanitized = FirebaseClient.SanitizeName(GetCurrentInput());
+                if (string.IsNullOrEmpty(sanitized))
                 {
-                    _errorText.Text = "Project folder and portfolio name are both required.";
+                    _errorText.Text = "Portfolio name is required.";
                     _errorText.Visibility = System.Windows.Visibility.Visible;
+                    return;
                 }
-                return;
+                FirebasePath = $"portfolios/{sanitized}";
+            }
+            else
+            {
+                string selected = GetCurrentInput();
+                if (string.IsNullOrEmpty(selected))
+                {
+                    _errorText.Text = "Select a portfolio to join.";
+                    _errorText.Visibility = System.Windows.Visibility.Visible;
+                    return;
+                }
+                FirebasePath = selected;
             }
 
             DialogResult = true;

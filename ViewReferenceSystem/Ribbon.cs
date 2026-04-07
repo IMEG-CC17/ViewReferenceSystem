@@ -243,6 +243,19 @@ namespace ViewReferenceSystem
                     {
                         System.Diagnostics.Debug.WriteLine($"⚠️ Update check failed: {updateEx.Message}");
                     }
+
+                    try
+                    {
+                        string username = FirebaseClient.SanitizeName(System.Environment.UserName);
+                        string localVer = UpdaterClient.CurrentVersionString;
+                        string storedVer = FirebaseClient.GetUserVersion(username);
+                        if (storedVer != localVer)
+                            FirebaseClient.SetUserVersion(username, localVer);
+                    }
+                    catch (Exception verEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Version reporting failed: {verEx.Message}");
+                    }
                 });
 
 
@@ -1446,8 +1459,9 @@ namespace ViewReferenceSystem
                 if (currentProject != null)
                 {
                     currentProject.LastSync = DateTime.Now;
-                    SyncLog($"  Updated LastSync for '{currentProject.ProjectName}'");
-                    System.Diagnostics.Debug.WriteLine($"   🕐 Updated last sync time for {currentProjectName}");
+                    currentProject.LastSyncUser = doc.Application.Username;
+                    SyncLog($"  Updated LastSync for '{currentProject.ProjectName}' by {currentProject.LastSyncUser}");
+                    System.Diagnostics.Debug.WriteLine($"   🕐 Updated last sync time for {currentProjectName} by {currentProject.LastSyncUser}");
                 }
 
                 portfolioData.LastUpdated = DateTime.Now;
