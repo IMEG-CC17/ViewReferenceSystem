@@ -1,4 +1,4 @@
-﻿// AiFamilyGeneratorWindow.cs
+﻿// CodeForgeWindow.cs
 
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
@@ -23,7 +23,7 @@ using WpfScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility;
 
 namespace ViewReferenceSystem.UI
 {
-    public class AiFamilyGeneratorWindow : Window
+    public class CodeForgeWindow : Window
     {
         #region Fields
 
@@ -53,7 +53,7 @@ namespace ViewReferenceSystem.UI
 
         #region Constructor
 
-        public AiFamilyGeneratorWindow(Document doc, UIApplication uiApp)
+        public CodeForgeWindow(Document doc, UIApplication uiApp)
         {
             _doc = doc;
             _uiApp = uiApp;
@@ -66,7 +66,7 @@ namespace ViewReferenceSystem.UI
 
         private void BuildUI()
         {
-            Title = "AI Family Generator";
+            Title = "CodeForge";
             Width = 780;
             Height = 650;
             MinWidth = 600;
@@ -79,10 +79,10 @@ namespace ViewReferenceSystem.UI
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             var root = new WpfGrid();
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                       // Header
-            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Code input
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                       // Debug expander
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                       // Bottom bar
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             // ── Header ───────────────────────────────────────────────────────
             var header = new Border
@@ -95,14 +95,14 @@ namespace ViewReferenceSystem.UI
             var headerStack = new StackPanel();
             headerStack.Children.Add(new TextBlock
             {
-                Text = "AI Family Generator",
+                Text = "CodeForge",
                 FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = BrushText
             });
             headerStack.Children.Add(new TextBlock
             {
-                Text = "Design your family with any AI \u2192 paste the generated C# code below \u2192 click Build Family",
+                Text = "Describe what you need in any AI \u2192 paste the generated C# code below \u2192 click Run",
                 FontSize = 11,
                 Foreground = BrushSubText,
                 Margin = new Thickness(0, 3, 0, 0)
@@ -118,7 +118,7 @@ namespace ViewReferenceSystem.UI
 
             var codeLabel = new TextBlock
             {
-                Text = "C# Family Code",
+                Text = "C# Code",
                 Foreground = BrushSubText,
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 11,
@@ -213,7 +213,7 @@ namespace ViewReferenceSystem.UI
 
             _statusText = new TextBlock
             {
-                Text = "Paste C# family code above and click Build Family.",
+                Text = "Paste C# code above and click Run.",
                 Foreground = BrushSubText,
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 11,
@@ -223,7 +223,7 @@ namespace ViewReferenceSystem.UI
 
             _buildButton = new Button
             {
-                Content = "Build Family",
+                Content = "Run",
                 Background = BrushAccent,
                 Foreground = BrushText,
                 BorderBrush = BrushAccent,
@@ -284,7 +284,7 @@ namespace ViewReferenceSystem.UI
                 Assembly compiled = CompileCode(code);
 
                 _buildButton.Content = "Running in Revit...";
-                SetStatus("Building family in Revit...", false);
+                SetStatus("Running in Revit...", false);
 
                 // Hide this window so Revit dialogs/actions are visible
                 this.WindowState = WindowState.Minimized;
@@ -296,7 +296,7 @@ namespace ViewReferenceSystem.UI
                 this.Activate();
                 this.Topmost = true;
                 this.Topmost = false;
-                SetStatus("Family built \u2014 check your Desktop for the .rfa file.", false);
+                SetStatus("Done.", false);
                 _statusText.Foreground = BrushSuccess;
             }
             catch (CompilationException cex)
@@ -324,7 +324,7 @@ namespace ViewReferenceSystem.UI
             finally
             {
                 _buildButton.IsEnabled = true;
-                _buildButton.Content = "Build Family";
+                _buildButton.Content = "Run";
             }
         }
 
@@ -341,9 +341,9 @@ namespace ViewReferenceSystem.UI
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine("=== AI FAMILY GENERATOR \u2014 BUILD ERRORS ===");
+            sb.AppendLine("=== CODEFORGE \u2014 BUILD ERRORS ===");
             sb.AppendLine();
-            sb.AppendLine("The following code failed to compile/run inside the AI Family Generator Revit addin.");
+            sb.AppendLine("The following code failed to compile/run inside the CodeForge Revit addin.");
             sb.AppendLine("The addin compiles C# in-memory (CodeDom on Revit 2022-2024, Roslyn on 2025+).");
             sb.AppendLine("Please diagnose the issue and provide the complete corrected code.");
             sb.AppendLine();
@@ -367,45 +367,50 @@ namespace ViewReferenceSystem.UI
             // Falls back to Roslyn on .NET 8+ (Revit 2025-2026)
             try
             {
-                return CompileWithCodeDom(code);
-            }
-            catch (PlatformNotSupportedException)
-            {
-                // .NET 8 — CSharpCodeProvider not supported, use Roslyn
-                return CompileWithRoslyn(code);
-            }
-        }
+                var provider = new CSharpCodeProvider();
+                var compilerParams = new CompilerParameters
+                {
+                    GenerateInMemory = true,
+                    GenerateExecutable = false,
+                    TreatWarningsAsErrors = false
+                };
 
-        private Assembly CompileWithCodeDom(string code)
-        {
-            var parameters = new CompilerParameters
-            {
-                GenerateInMemory = true,
-                GenerateExecutable = false,
-                TreatWarningsAsErrors = false
-            };
+                compilerParams.ReferencedAssemblies.Add(typeof(object).Assembly.Location);
+                compilerParams.ReferencedAssemblies.Add(typeof(UIApplication).Assembly.Location);
+                compilerParams.ReferencedAssemblies.Add(typeof(Document).Assembly.Location);
 
-            parameters.ReferencedAssemblies.Add("mscorlib.dll");
-            parameters.ReferencedAssemblies.Add("System.dll");
-            parameters.ReferencedAssemblies.Add("System.Core.dll");
-            parameters.ReferencedAssemblies.Add("System.Xml.dll");
-            parameters.ReferencedAssemblies.Add(typeof(UIApplication).Assembly.Location);
-            parameters.ReferencedAssemblies.Add(typeof(Document).Assembly.Location);
+                try
+                {
+                    string newtonsoftPath = typeof(JsonConvert).Assembly.Location;
+                    if (!string.IsNullOrEmpty(newtonsoftPath))
+                        compilerParams.ReferencedAssemblies.Add(newtonsoftPath);
+                }
+                catch { }
 
-            try
-            {
-                string newtonsoftPath = typeof(JsonConvert).Assembly.Location;
-                if (File.Exists(newtonsoftPath))
-                    parameters.ReferencedAssemblies.Add(newtonsoftPath);
-            }
-            catch { }
+                string sysCore = Path.Combine(
+                    Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Core.dll");
+                if (File.Exists(sysCore))
+                    compilerParams.ReferencedAssemblies.Add(sysCore);
 
-            using (var provider = new CSharpCodeProvider())
-            {
-                var results = provider.CompileAssemblyFromSource(parameters, code);
+                string sysLinq = Path.Combine(
+                    Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Linq.dll");
+                if (File.Exists(sysLinq))
+                    compilerParams.ReferencedAssemblies.Add(sysLinq);
+
+                CompilerResults results = provider.CompileAssemblyFromSource(compilerParams, code);
 
                 if (results.Errors.HasErrors)
                 {
+                    // If CodeDom fails, try Roslyn (might be .NET 8+)
+                    bool isNetFramework = results.Errors.Cast<CompilerError>()
+                        .Any(e => e.ErrorText.Contains("System.Runtime") ||
+                                  e.ErrorText.Contains("mscorlib"));
+
+                    if (!isNetFramework)
+                    {
+                        return CompileWithRoslyn(code);
+                    }
+
                     var sb = new StringBuilder();
                     sb.AppendLine("Compilation failed with " + results.Errors.Count + " error(s):\n");
                     foreach (CompilerError err in results.Errors)
@@ -416,14 +421,15 @@ namespace ViewReferenceSystem.UI
 
                 return results.CompiledAssembly;
             }
+            catch (CompilationException) { throw; }
+            catch
+            {
+                return CompileWithRoslyn(code);
+            }
         }
 
         private Assembly CompileWithRoslyn(string code)
         {
-            // Roslyn compilation for .NET 8+ (Revit 2025-2026)
-            // 100% reflection — no compile-time dependency on Microsoft.CodeAnalysis
-            // DLLs must be in the addins folder (deployed by batch file or Firebase auto-update)
-
             string addinsFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             string roslynCommonPath = Path.Combine(addinsFolder, "Microsoft.CodeAnalysis.dll");
             string roslynCSharpPath = Path.Combine(addinsFolder, "Microsoft.CodeAnalysis.CSharp.dll");
@@ -431,17 +437,15 @@ namespace ViewReferenceSystem.UI
             if (!File.Exists(roslynCommonPath) || !File.Exists(roslynCSharpPath))
                 throw new Exception(
                     "Roslyn compiler DLLs not found in addins folder.\n\n" +
-                    "AI Family Generator requires Roslyn for Revit 2025+.\n" +
+                    "CodeForge requires Roslyn for Revit 2025+.\n" +
                     "Run the installer batch file or update the add-in to get the required DLLs.\n\n" +
                     "Missing from: " + addinsFolder);
 
             try
             {
-                // Load Roslyn assemblies
                 Assembly commonAsm = Assembly.LoadFrom(roslynCommonPath);
                 Assembly csharpAsm = Assembly.LoadFrom(roslynCSharpPath);
 
-                // ── Get types ──
                 Type metadataRefType = commonAsm.GetType("Microsoft.CodeAnalysis.MetadataReference");
                 Type syntaxTreeBaseType = commonAsm.GetType("Microsoft.CodeAnalysis.SyntaxTree");
                 Type metadataRefBaseType = commonAsm.GetType("Microsoft.CodeAnalysis.MetadataReference");
@@ -451,22 +455,14 @@ namespace ViewReferenceSystem.UI
                 Type csharpCompilationType = csharpAsm.GetType("Microsoft.CodeAnalysis.CSharp.CSharpCompilation");
                 Type csharpCompOptionsType = csharpAsm.GetType("Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions");
 
-                // ── MetadataReference.CreateFromFile ──
                 MethodInfo createFromFile = null;
                 foreach (var m in metadataRefType.GetMethods(BindingFlags.Public | BindingFlags.Static))
                 {
-                    if (m.Name == "CreateFromFile")
-                    {
-                        createFromFile = m;
-                        break;
-                    }
+                    if (m.Name == "CreateFromFile") { createFromFile = m; break; }
                 }
                 if (createFromFile == null)
                     throw new Exception("Could not find MetadataReference.CreateFromFile method");
 
-                // Helper: call CreateFromFile with ANY number of params
-                // Roslyn 4.8.0 has 3 params: (string path, MetadataReferenceProperties properties, DocumentationProvider documentation)
-                // We fill in defaults for all params beyond the first.
                 var cfParams = createFromFile.GetParameters();
                 Func<string, object> makeRef = (path) =>
                 {
@@ -474,32 +470,23 @@ namespace ViewReferenceSystem.UI
                     args[0] = path;
                     for (int i = 1; i < cfParams.Length; i++)
                     {
-                        if (cfParams[i].HasDefaultValue)
-                            args[i] = cfParams[i].DefaultValue;
-                        else if (cfParams[i].ParameterType.IsValueType)
-                            args[i] = Activator.CreateInstance(cfParams[i].ParameterType);
-                        else
-                            args[i] = null;
+                        if (cfParams[i].HasDefaultValue) args[i] = cfParams[i].DefaultValue;
+                        else if (cfParams[i].ParameterType.IsValueType) args[i] = Activator.CreateInstance(cfParams[i].ParameterType);
+                        else args[i] = null;
                     }
                     return createFromFile.Invoke(null, args);
                 };
 
-                // ── Build metadata references ──
                 var refList = new List<object>();
-
                 Action<string> addRef = (path) =>
                 {
                     if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
                     try { refList.Add(makeRef(path)); } catch { }
                 };
 
-                // Core .NET runtime references
-                // .NET 8+ (Revit 2025+): use Trusted Platform Assemblies
-                // .NET Framework (Revit 2022-2024): use typeof(object).Assembly.Location
                 string tpaList = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
                 if (!string.IsNullOrEmpty(tpaList))
                 {
-                    // .NET 8+ path — add all System.* and core assemblies
                     foreach (string asmPath in tpaList.Split(';'))
                     {
                         string fn = Path.GetFileName(asmPath);
@@ -509,52 +496,39 @@ namespace ViewReferenceSystem.UI
                 }
                 else
                 {
-                    // .NET Framework fallback
                     string runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location);
                     foreach (string dll in new[] {
                         "System.Runtime.dll", "System.Collections.dll", "System.Linq.dll",
                         "System.Console.dll", "netstandard.dll", "System.dll",
                         "System.Core.dll", "System.Xml.dll" })
-                    {
                         addRef(Path.Combine(runtimeDir, dll));
-                    }
                     addRef(typeof(object).Assembly.Location);
                 }
-                addRef(typeof(UIApplication).Assembly.Location);   // RevitAPIUI
-                addRef(typeof(Document).Assembly.Location);        // RevitAPI
-                try { addRef(typeof(JsonConvert).Assembly.Location); } catch { } // Newtonsoft
+                addRef(typeof(UIApplication).Assembly.Location);
+                addRef(typeof(Document).Assembly.Location);
+                try { addRef(typeof(JsonConvert).Assembly.Location); } catch { }
 
-                // ── Parse code ──
                 MethodInfo parseMethod = null;
                 foreach (var m in csharpSyntaxTreeType.GetMethods(BindingFlags.Public | BindingFlags.Static))
                 {
                     if (m.Name != "ParseText") continue;
                     var p = m.GetParameters();
-                    if (p.Length >= 1 && p[0].ParameterType == typeof(string))
-                    {
-                        parseMethod = m;
-                        break;
-                    }
+                    if (p.Length >= 1 && p[0].ParameterType == typeof(string)) { parseMethod = m; break; }
                 }
                 if (parseMethod == null)
                     throw new Exception("Could not find CSharpSyntaxTree.ParseText method");
 
-                // Build args with defaults for extra parameters
                 var parseParams = parseMethod.GetParameters();
                 var parseArgs = new object[parseParams.Length];
                 parseArgs[0] = code;
                 for (int i = 1; i < parseParams.Length; i++)
                 {
-                    if (parseParams[i].HasDefaultValue)
-                        parseArgs[i] = parseParams[i].DefaultValue;
-                    else if (parseParams[i].ParameterType.IsValueType)
-                        parseArgs[i] = Activator.CreateInstance(parseParams[i].ParameterType);
-                    else
-                        parseArgs[i] = null;
+                    if (parseParams[i].HasDefaultValue) parseArgs[i] = parseParams[i].DefaultValue;
+                    else if (parseParams[i].ParameterType.IsValueType) parseArgs[i] = Activator.CreateInstance(parseParams[i].ParameterType);
+                    else parseArgs[i] = null;
                 }
                 object syntaxTree = parseMethod.Invoke(null, parseArgs);
 
-                // ── Build typed arrays ──
                 var treesArray = Array.CreateInstance(syntaxTreeBaseType, 1);
                 treesArray.SetValue(syntaxTree, 0);
 
@@ -562,7 +536,6 @@ namespace ViewReferenceSystem.UI
                 for (int i = 0; i < refList.Count; i++)
                     refsArray.SetValue(refList[i], i);
 
-                // ── CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary) ──
                 object outputKindDll = Enum.Parse(outputKindType, "DynamicallyLinkedLibrary");
                 var optionsCtor = csharpCompOptionsType.GetConstructors()
                     .OrderBy(c => c.GetParameters().Length).First();
@@ -571,32 +544,23 @@ namespace ViewReferenceSystem.UI
                 ctorArgs[0] = outputKindDll;
                 for (int i = 1; i < ctorParams.Length; i++)
                 {
-                    if (ctorParams[i].HasDefaultValue)
-                        ctorArgs[i] = ctorParams[i].DefaultValue;
-                    else if (ctorParams[i].ParameterType.IsValueType)
-                        ctorArgs[i] = Activator.CreateInstance(ctorParams[i].ParameterType);
-                    else
-                        ctorArgs[i] = null;
+                    if (ctorParams[i].HasDefaultValue) ctorArgs[i] = ctorParams[i].DefaultValue;
+                    else if (ctorParams[i].ParameterType.IsValueType) ctorArgs[i] = Activator.CreateInstance(ctorParams[i].ParameterType);
+                    else ctorArgs[i] = null;
                 }
                 object compOptions = optionsCtor.Invoke(ctorArgs);
 
-                // ── CSharpCompilation.Create(name, syntaxTrees, references, options) ──
                 MethodInfo createMethod = null;
                 foreach (var m in csharpCompilationType.GetMethods(BindingFlags.Public | BindingFlags.Static))
                 {
-                    if (m.Name == "Create" && m.GetParameters().Length == 4)
-                    {
-                        createMethod = m;
-                        break;
-                    }
+                    if (m.Name == "Create" && m.GetParameters().Length == 4) { createMethod = m; break; }
                 }
                 if (createMethod == null)
                     throw new Exception("Could not find CSharpCompilation.Create method");
 
                 object compilation = createMethod.Invoke(null, new object[] {
-                    "AIFamilyGenerator", treesArray, refsArray, compOptions });
+                    "CodeForge", treesArray, refsArray, compOptions });
 
-                // ── Emit to MemoryStream ──
                 using (var ms = new MemoryStream())
                 {
                     MethodInfo emitMethod = null;
@@ -604,11 +568,7 @@ namespace ViewReferenceSystem.UI
                     {
                         if (m.Name != "Emit") continue;
                         var ep = m.GetParameters();
-                        if (ep.Length >= 1 && ep[0].ParameterType == typeof(Stream))
-                        {
-                            emitMethod = m;
-                            break;
-                        }
+                        if (ep.Length >= 1 && ep[0].ParameterType == typeof(Stream)) { emitMethod = m; break; }
                     }
                     if (emitMethod == null)
                         throw new Exception("Could not find Compilation.Emit method");
@@ -618,16 +578,12 @@ namespace ViewReferenceSystem.UI
                     emitArgs[0] = ms;
                     for (int i = 1; i < emitParams.Length; i++)
                     {
-                        if (emitParams[i].HasDefaultValue)
-                            emitArgs[i] = emitParams[i].DefaultValue;
-                        else if (emitParams[i].ParameterType.IsValueType)
-                            emitArgs[i] = Activator.CreateInstance(emitParams[i].ParameterType);
-                        else
-                            emitArgs[i] = null;
+                        if (emitParams[i].HasDefaultValue) emitArgs[i] = emitParams[i].DefaultValue;
+                        else if (emitParams[i].ParameterType.IsValueType) emitArgs[i] = Activator.CreateInstance(emitParams[i].ParameterType);
+                        else emitArgs[i] = null;
                     }
 
                     object emitResult = emitMethod.Invoke(compilation, emitArgs);
-
                     bool success = (bool)emitResult.GetType().GetProperty("Success").GetValue(emitResult);
 
                     if (!success)
@@ -639,8 +595,7 @@ namespace ViewReferenceSystem.UI
                         sb.AppendLine("Roslyn compilation failed:\n");
                         foreach (object diag in diagnostics)
                         {
-                            string severity = diag.GetType().GetProperty("Severity")
-                                .GetValue(diag).ToString();
+                            string severity = diag.GetType().GetProperty("Severity").GetValue(diag).ToString();
                             if (severity == "Error")
                                 sb.AppendLine("  " + diag.ToString());
                         }
@@ -663,11 +618,11 @@ namespace ViewReferenceSystem.UI
 
         private void ExecuteGeneratedCode(Assembly assembly, UIApplication uiApp)
         {
-            Type genType = assembly.GetType("AIFamilyGenerator.GeneratedFamily");
+            Type genType = assembly.GetType("CodeForge.CodeForgeScript");
             if (genType == null)
-                throw new Exception("Generated code must define class 'AIFamilyGenerator.GeneratedFamily'.\n\n" +
-                    "Expected namespace: AIFamilyGenerator\n" +
-                    "Expected class: GeneratedFamily\n" +
+                throw new Exception("Generated code must define class 'CodeForge.CodeForgeScript'.\n\n" +
+                    "Expected namespace: CodeForge\n" +
+                    "Expected class: CodeForgeScript\n" +
                     "Expected method: public static void Execute(UIApplication uiApp)");
 
             MethodInfo exec = genType.GetMethod("Execute",
@@ -675,7 +630,7 @@ namespace ViewReferenceSystem.UI
                 new[] { typeof(UIApplication) }, null);
 
             if (exec == null)
-                throw new Exception("GeneratedFamily must have a public static Execute(UIApplication) method.");
+                throw new Exception("CodeForgeScript must have a public static Execute(UIApplication) method.");
 
             exec.Invoke(null, new object[] { uiApp });
         }
@@ -705,31 +660,28 @@ namespace ViewReferenceSystem.UI
         }
 
         private static string GetPlaceholderText() =>
-@"// Paste your AI-generated C# family code here.
+@"// Paste your AI-generated C# code here.
 //
 // The code must follow this structure:
 //
-//   namespace AIFamilyGenerator
+//   namespace CodeForge
 //   {
-//       public static class GeneratedFamily
+//       public static class CodeForgeScript
 //       {
 //           public static void Execute(UIApplication uiApp)
 //           {
-//               // Build the family here using Revit API
+//               // Your Revit automation code here
 //           }
 //       }
 //   }
 //
 // How to use:
-//   1. Open any AI chat (Claude, ChatGPT, etc.)
-//   2. Describe the Revit family you need
-//   3. Ask it to generate Revit API C# code using the structure above
-//   4. Paste the code here
-//   5. Click Build Family
+//   1. Open any AI chat (Claude, MEG, ChatGPT, etc.)
+//   2. Describe what you want Revit to do
+//   3. Paste the generated C# code here
+//   4. Click Run
 //
-// The .rfa file will be saved to your Desktop.
-//
-// NOTE: Run this from Revit 2022 for best compatibility.";
+// CodeForge compiles and executes the code against your live Revit model.";
 
         #endregion
     }
@@ -752,13 +704,13 @@ namespace ViewReferenceSystem.Commands
     using ViewReferenceSystem.UI;
 
     [Transaction(TransactionMode.Manual)]
-    public class AiFamilyGeneratorCommand : IExternalCommand
+    public class CodeForgeCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             try
             {
-                var window = new AiFamilyGeneratorWindow(
+                var window = new CodeForgeWindow(
                     commandData.Application.ActiveUIDocument?.Document,
                     commandData.Application);
                 window.ShowDialog();

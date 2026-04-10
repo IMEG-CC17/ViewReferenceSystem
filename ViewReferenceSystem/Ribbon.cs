@@ -186,15 +186,15 @@ namespace ViewReferenceSystem
                 _updateButton = panel.AddItem(updateButtonData) as PushButton;
                 _updateButton.Enabled = true;
 
-                // AI Family Generator Button
-                PushButtonData aiFamilyButtonData = new PushButtonData(
-                    "AiFamilyGeneratorButton",
-                    "AI Family\nGenerator",
+                // CodeForge Button
+                PushButtonData codeForgeButtonData = new PushButtonData(
+                    "CodeForgeButton",
+                    "Code\nForge",
                     typeof(Ribbon).Assembly.Location,
-                    typeof(ViewReferenceSystem.Commands.AiFamilyGeneratorCommand).FullName);
-                aiFamilyButtonData.ToolTip = "Generate Revit families from a JSON spec using Claude Sonnet AI";
-                aiFamilyButtonData.LargeImage = LoadPushButtonImage("ViewReferenceSystem.Resources.DetailIcon32.png");
-                panel.AddItem(aiFamilyButtonData);
+                    typeof(ViewReferenceSystem.Commands.CodeForgeCommand).FullName);
+                codeForgeButtonData.ToolTip = "CodeForge — describe what you need, paste the AI-generated code, and run it directly inside Revit";
+                codeForgeButtonData.LargeImage = LoadPushButtonImage("ViewReferenceSystem.Resources.DetailIcon32.png");
+                panel.AddItem(codeForgeButtonData);
 
                 // ── Drafting Tools Panel ──────────────────────────────────────────
                 RibbonPanel draftingPanel = app.CreateRibbonPanel(tabName, "Drafting Tools");

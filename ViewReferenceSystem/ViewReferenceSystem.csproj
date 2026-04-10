@@ -71,7 +71,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Aifamilygeneratorwindow.cs" />
+    <Compile Include="CodeForgeWindow.cs" />
     <Compile Include="ClearParametersHelper.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="ContextMenuManager.cs" />
